@@ -16,6 +16,6 @@
 		"yiisoft/yii2": "~2.0"
 	},
 	"autoload": {
-		"psr-4": { "flexibuild\\FileSystem": "" }
+		"psr-4": { "flexibuild\\FileSystem\\": "" }
 	}
 }
