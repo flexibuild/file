@@ -1,0 +1,21 @@
+{
+	"name": "flexibuild/file-system",
+	"description": "File Manager for Yii2 applications",
+	"keywords": ["yii2", "file", "manager"],
+	"homepage": "http://rgt.by/",
+	"type": "yii2-extension",
+	"authors": [
+		{
+			"name": "Alexey Seynov",
+			"email": "sejnovalexey@gmail.com",
+			"role": "Developer"
+		}
+	],
+	"minimum-stability": "dev",
+	"require": {
+		"yiisoft/yii2": "~2.0"
+	},
+	"autoload": {
+		"psr-4": { "flexibuild\\FileSystem": "" }
+	}
+}
