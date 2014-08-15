@@ -1,21 +1,21 @@
 {
-	"name": "flexibuild/file-system",
-	"description": "File Manager for Yii2 applications",
-	"keywords": ["yii2", "file", "manager"],
-	"homepage": "http://rgt.by/",
-	"type": "yii2-extension",
-	"authors": [
-		{
-			"name": "Alexey Seynov",
-			"email": "sejnovalexey@gmail.com",
-			"role": "Developer"
-		}
-	],
-	"minimum-stability": "dev",
-	"require": {
-		"yiisoft/yii2": "*"
-	},
-	"autoload": {
-		"psr-4": { "flexibuild\\FileSystem\\": "" }
-	}
+    "name": "flexibuild/file",
+    "description": "Files logic for Yii2 applications. Working with files as simple model attributes.",
+    "keywords": ["yii2", "file"],
+    "homepage": "http://rgt.by/",
+    "type": "yii2-extension",
+    "authors": [
+        {
+            "name": "Alexey Seynov",
+            "email": "sejnovalexey@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "yiisoft/yii2": "*"
+    },
+    "autoload": {
+        "psr-4": { "flexibuild\\file\\": "" }
+    }
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace flexibuild\FileSystem;
+namespace flexibuild\file;
 
 use Yii;
 use yii\base\Component;
