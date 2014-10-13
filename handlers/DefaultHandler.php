@@ -13,29 +13,25 @@ use flexibuild\file\validators\FileValidator;
  * If you need to save any other files on fly you may override this class and
  * implement your own logic.
  * 
- * @property \yii\validators\Validator[] $validators
+ * @property \yii\validators\Validator[] $validators for validating files.
  * 
  * @author SeynovAM <sejnovalexey@gmail.com>
  */
-class DefaultHandler extends Component
+class DefaultHandler extends Component implements HandlerInterface
 {
+    /**
+     * @var mixed
+     */
     private $_validators;
 
-    public function init()
-    {
-        parent::init();
-
-    }
-
     /**
+     * Gets file validators.
      * @return \yii\validators\Validator[]
      */
     public function getValidators()
     {
         if ($this->_validators === null) {
-            $this->_validators = [
-                FileValidator::className(),
-            ];
+            $this->_validators = $this->defaultValidators();
         }
 
         foreach ($this->_validators as $key => $validator) {
@@ -48,10 +44,23 @@ class DefaultHandler extends Component
     }
 
     /**
+     * Sets handler validators. You can use Yii standarts for setting validators
+     * configuration.
      * @param array $validators
      */
     public function setValidators($validators)
     {
         $this->_validators = $validators;
+    }
+
+    /**
+     * Returns default handler's validators configuration. This method may be
+     * overrided in subclasses.
+     * @return array default validators config. Used in `getValidators()` if validators
+     * was not set.
+     */
+    protected function defaultValidators()
+    {
+        return [FileValidator::className()];
     }
 }

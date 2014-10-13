@@ -24,7 +24,7 @@ use yii\base\InvalidConfigException;
 use yii\base\Exception;
 
 use flexibuild\file\storages\AbstractStorage;
-use flexibuild\file\helpers\CharsetHelper;
+use flexibuild\file\helpers\FileSystemHelper;
 
 /**
  * Storage that keeps your file in local file system but tries save its with
@@ -93,7 +93,7 @@ class OriginNamesStorage extends AbstractStorage
      * Origin filename will be converted in this charset by iconv() method.
      * 
      * Null meaning storage will try detect filesystem charset.
-     * @see flexibuild\file\helpers\CharsetHelper
+     * @see flexibuild\file\helpers\BaseFileSystemHelper
      * 
      * False meaning storage will not convert filename.
      * 
@@ -154,8 +154,8 @@ class OriginNamesStorage extends AbstractStorage
     {
         $resultPath = $this->createFile($originFilename, $content);
         return serialize([
-            self::INFO_KEY_FILENAME => basename($resultPath),
-            self::INFO_KEY_SUBDIR => basename(dirname($resultPath)),
+            self::INFO_KEY_FILENAME => FileSystemHelper::basename($resultPath),
+            self::INFO_KEY_SUBDIR => FileSystemHelper::basename(dirname($resultPath)),
         ]);
     }
 
@@ -295,7 +295,7 @@ class OriginNamesStorage extends AbstractStorage
     public function getFSFileName($filename)
     {
         $pathinfo = pathinfo($filename);
-        if ($this->matchesRandomChars($pathinfo['filename']) && (!isset($pathinfo['extension']) || preg_match($this->extensionRegular, $pathinfo['extension']))) {
+        if ($this->matchesRandomChars($pathinfo['filename']) && (!@$pathinfo['extension'] || preg_match($this->extensionRegular, $pathinfo['extension']))) {
             return $filename;
         }
 
@@ -319,7 +319,7 @@ class OriginNamesStorage extends AbstractStorage
      */
     public function convertFromFSFilename($fsFilename)
     {
-        $pathinfo = pathinfo($fsFilename);
+        $pathinfo = FileSystemHelper::pathinfo($fsFilename);
         if ($this->matchesRandomChars($pathinfo['filename']) && (!isset($pathinfo['extension']) || preg_match($this->extensionRegular, $pathinfo['extension']))) {
             return $fsFilename;
         }
@@ -377,7 +377,7 @@ class OriginNamesStorage extends AbstractStorage
     protected function detectedFSCharset($cutSpecialModes = false)
     {
         if (null === $result = $this->winFSCharset) {
-            $detectedCharset = CharsetHelper::getFileSystemCharset();
+            $detectedCharset = FileSystemHelper::getFileSystemCharset();
             $result = $detectedCharset ? "$detectedCharset//TRANSLIT" : false;
         }
 
@@ -442,7 +442,7 @@ class OriginNamesStorage extends AbstractStorage
      */
     protected function generateFilename($originFilename)
     {
-        $ext = (string) @pathinfo($originFilename, PATHINFO_EXTENSION);
+        $ext = (string) FileSystemHelper::extension($originFilename);
         if ($ext === '' || !preg_match($this->extensionRegular, $ext)) {
             $ext = false;
         }
