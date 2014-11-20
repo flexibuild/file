@@ -3,9 +3,10 @@
 namespace flexibuild\file\helpers;
 
 /**
- *@see BaseFileSystemHelper
+ * File System Helper
+ * @see BaseFileSystemHelper
  *
- * @author SeynovAM
+ * @author SeynovAM <sejnovalexey@gmail.com>
  */
 class FileSystemHelper extends BaseFileSystemHelper
 {
