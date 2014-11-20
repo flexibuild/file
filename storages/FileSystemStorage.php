@@ -174,7 +174,7 @@ class FileSystemStorage extends Storage
     public function saveFormattedFileByCopying($data, $sourceFilePath, $formatName)
     {
         $fsFormatPath = $this->_getFormatFSFilePath($data, $formatName);
-        if (!copy($sourceFilePath, $fsFormatPath)) {
+        if (!@copy($sourceFilePath, $fsFormatPath)) {
             Yii::warning("Cannot copy formatted as '$formatName' version of file ($sourceFilePath) for '$data' file in '{$this->context->name}' context.");
             return false;
         }
@@ -215,26 +215,32 @@ class FileSystemStorage extends Storage
         if (count($fileParts = explode('/', $data)) !== 2) {
             return false;
         }
-        $fsSourceFilename = FileSystemHelper::encodeFilename($fileParts[1], $this->winFSCharset);
-        if ($this->containsSpecialChar($fileParts[0]) || $this->containsSpecialChar($fsSourceFilename)) {
-            return false;
-        }
 
         $rootDirectory = $this->getRootDirectory();
-        if (!is_file("$rootDirectory/$fileParts[0]/$fsSourceFilename")) {
-            return false;
-        } elseif ($format === null) {
-            return true;
+        $fsSourceFilename = FileSystemHelper::encodeFilename($fileParts[1], $this->winFSCharset);
+
+        switch (true) {
+            case !preg_match('/^[a-z0-9\-\_]+$/i', $fileParts[0]); // no break
+            case in_array($fsSourceFilename, ['', '.', '..'], true); // no break
+            case $this->containsSpecialChar($fsSourceFilename); // no  break
+            case !is_dir($rootDirectory/$fileParts[0]); // no break
+            case !FileSystemHelper::fileExists($rootDirectory, $fileParts[0], true, false); // no break
+            case !is_file("$rootDirectory/$fileParts[0]/$fsSourceFilename"); // no break
+            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $fsSourceFilename, true, $this->winFSCharset); // no break
+                return false;
+
+            case $format === null:
+                return true;
+
+            case !is_string($format); // no break
+            case !preg_match('/^[0-9a-z\_]+$/i', $format); // no break
+            case !is_dir("$rootDirectory/$fileParts[0]"); // no break
+            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $format, true, false); // no break
+            case !is_file("$rootDirectory/$fileParts[0]/$format/$fsSourceFilename"); // no break
+            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]/$format", $fsSourceFilename, true, $this->winFSCharset); // no break
+                return false;
         }
 
-        if (!is_string($format) || $format === '' || $this->containsSpecialChar($format)) {
-            return false;
-        }
-
-        $formatDir = "$rootDirectory/$fileParts[0]/$format";
-        if (!is_dir($formatDir) || !is_file("$formatDir/$fsSourceFilename")) {
-            return false;
-        }
         return true;
     }
 
@@ -244,6 +250,7 @@ class FileSystemStorage extends Storage
     public function getRelativeUrl($data, $format = null)
     {
         $this->checkFileData($data, $format);
+
         list($folder, $filename) = explode('/', $data);
         $encodedFilename = rawurlencode($filename);
         $rootWebPath = $this->getRootWebPath();
@@ -289,7 +296,7 @@ class FileSystemStorage extends Storage
         $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
         $result = [];
         foreach ($formatDirs as $formatDir) {
-            if (is_file("$formatDir/$fsFilename")) {
+            if (is_file("$formatDir/$fsFilename") && FileSystemHelper::fileExists($formatDir, $fsFilename, true, $this->winFSCharset)) {
                 $result[] = FileSystemHelper::basename($formatDir);
             }
         }
@@ -451,8 +458,8 @@ class FileSystemStorage extends Storage
         $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
         foreach ($rootDirChilds as $dir) {
             switch (true) {
-                case !is_dir("$rootDirectory/$dir"): // no break
-                case FileSystemHelper::fileExists("$rootDirectory/$dir/$fsFilename", false, $this->winFSCharset): // no break
+                case !is_dir("$rootDirectory/$dir"); // no break
+                case FileSystemHelper::fileExists("$rootDirectory/$dir", $fsFilename, false, $this->winFSCharset); // no break
                 case FileSystemHelper::directoryFilesCount("$rootDirectory/$dir") > $this->maxSubdirFilesCount:
                     $dir = false;
                     break;
@@ -465,7 +472,7 @@ class FileSystemStorage extends Storage
         while ($dir === false) {
             $dir = $this->generateRandomString($this->subdirsLength);
             $dirpath = "$rootDirectory/$dir";
-            if (file_exists($dirpath)) {
+            if (FileSystemHelper::fileExists($rootDirectory, $dir, false, false)) {
                 $dir = false;
             } elseif (!FileSystemHelper::createDirectory($dirpath, $this->makeDirMode)) {
                 throw new InvalidConfigException("Cannot create directory: $dirpath");
@@ -531,7 +538,7 @@ class FileSystemStorage extends Storage
      */
     protected function isValidFileName($filename, $validateEncoded = true)
     {
-        if (!is_string($filename) || $filename === '') {
+        if (!is_string($filename) || in_array($filename, ['', '.', '..'], true)) {
             return false;
         }
         if ($this->containsSpecialChar($filename)) {
@@ -564,7 +571,8 @@ class FileSystemStorage extends Storage
      */
     protected function isValidExtension($extension, $validateEncoded = true)
     {
-        if (!is_string($extension) || $extension === '') {
+        $charset = Yii::$app->charset;
+        if (!is_string($extension) || $extension === '' || mb_strpos($extension, '.', 0, $charset) !== false) {
             return false;
         }
         if (!preg_match($this->extensionRegular, $extension)) {
@@ -574,7 +582,6 @@ class FileSystemStorage extends Storage
             return false;
         }
 
-        $charset = Yii::$app->charset;
         $extensionLoweredCase = mb_strtolower($extension, $charset);
         foreach ($this->disallowedExtensions as $disallowedExt) {
             if (mb_strtolower($disallowedExt, $charset) === $extensionLoweredCase) {

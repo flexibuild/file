@@ -163,7 +163,7 @@ class Context extends Component implements ContextInterface
     public function setFormatters($formatters)
     {
         foreach ($formatters as $name => $formatter) {
-            if (!preg_match('/^[0-9a-z\_]$/i', $name)) {
+            if (!preg_match('/^[0-9a-z\_]+$/i', $name)) {
                 throw new InvalidConfigException("Incorrect name '$name', the name of formatter may have digits, letters or underscope only.");
             }
         }

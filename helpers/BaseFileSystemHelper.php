@@ -25,10 +25,11 @@ class BaseFileSystemHelper extends BaseFileHelper
     {
         $filepath = str_replace('\\', '/', $filepath);
         $filepath = rtrim($filepath, '/');
+        $charset = Yii::$app->charset;
 
-        if (false !== $pos = mb_strrpos($filepath, '/', 0, Yii::$app->charset)) {
-            $length = mb_strlen($filepath, Yii::$app->charset);
-            return mb_substr($filepath, $pos + 1, $length - $pos - 1, Yii::$app->charset);
+        if (false !== $pos = mb_strrpos($filepath, '/', 0, $charset)) {
+            $length = mb_strlen($filepath, $charset);
+            return mb_substr($filepath, $pos + 1, $length - $pos - 1, $charset);
         }
         return $filepath;
     }
@@ -43,9 +44,10 @@ class BaseFileSystemHelper extends BaseFileHelper
     public static function dirname($filepath)
     {
         $filepath = rtrim($filepath, '\/');
-        $pos = mb_strrpos(str_replace('\\', '/', $filepath), '/', 0, Yii::$app->charset);
+        $charset = Yii::$app->charset;
+        $pos = mb_strrpos(str_replace('\\', '/', $filepath), '/', 0, $charset);
         if ($pos !== false) {
-            return rtrim(mb_substr($filepath, 0, $pos, Yii::$app->charset), '\/');
+            return rtrim(mb_substr($filepath, 0, $pos, $charset), '\/');
         }
         return '.';
     }
@@ -60,8 +62,9 @@ class BaseFileSystemHelper extends BaseFileHelper
     public static function filename($filepath)
     {
         $basename = static::basename($filepath);
-        if (false !== $pos = mb_strrpos($basename, '.', 0, Yii::$app->charset)) {
-            return mb_substr($basename, 0, $pos, Yii::$app->charset);
+        $charset = Yii::$app->charset;
+        if (false !== $pos = mb_strrpos($basename, '.', 0, $charset)) {
+            return mb_substr($basename, 0, $pos, $charset);
         }
         return $basename;
     }
@@ -77,12 +80,13 @@ class BaseFileSystemHelper extends BaseFileHelper
     public static function extension($filepath)
     {
         $basename = static::basename($filepath);
-        if (false !== $pos = mb_strrpos($basename, '.', 0, Yii::$app->charset)) {
-            $length = mb_strlen($basename, Yii::$app->charset);
+        $charset = Yii::$app->charset;
+        if (false !== $pos = mb_strrpos($basename, '.', 0, $charset)) {
+            $length = mb_strlen($basename, $charset);
             if ($pos === $length - 1) {
                 return '';
             }
-            return mb_substr($basename, $pos + 1, $length - $pos - 1, Yii::$app->charset);
+            return mb_substr($basename, $pos + 1, $length - $pos - 1, $charset);
         }
         return null;
     }
@@ -153,7 +157,7 @@ class BaseFileSystemHelper extends BaseFileHelper
         if (!$caseSensitive) { // false or null
             if (file_exists($dir . DIRECTORY_SEPARATOR . $filename)) {
                 return true;
-            } elseif ($caseSensitive === null) {
+            } elseif ($caseSensitive === null || static::isWindowsOS()) {
                 return false;
             }
 
@@ -249,7 +253,7 @@ class BaseFileSystemHelper extends BaseFileHelper
         $ext = static::extension($file);
 
         if ($ext !== '' && $ext !== null) {
-            $ext = strtolower($ext, Yii::$app->charset);
+            $ext = strtolower($ext);
             if (isset($mimeTypes[$ext])) {
                 return $mimeTypes[$ext];
             }
