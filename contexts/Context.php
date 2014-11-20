@@ -20,6 +20,9 @@ use flexibuild\file\storages\Storage;
 use flexibuild\file\storages\FileSystemStorage;
 use flexibuild\file\formatters\FormatterInterface;
 use flexibuild\file\formatters\Formatter;
+use flexibuild\file\formatters\InlineFormatter;
+use flexibuild\file\formatters\FromFormatter;
+use flexibuild\file\formatters\ChainedFormatter;
 
 /**
  * Contexts used in file manager for separating different file types (contexts).
@@ -35,7 +38,8 @@ use flexibuild\file\formatters\Formatter;
  * 
  * @property FormatterInterface[] $formatters for processing files in format name => formatter object format.
  * By default empty array that meaning context has no formatters.
- * @see \flexibuild\file\formatters\FormatterInterface
+ * @see [[self::setFormatters()]] for more info.
+ * 
  * 
  * @property array $validators Validators configuration that will be attached to the model that will use this context.
  * Each element may be one of:
@@ -96,6 +100,16 @@ class Context extends Component implements ContextInterface
      * @var mixed
      */
     private $_storage;
+
+    /**
+     * Built in formatters aliases. Used in [[self::instantiateFormatter()]].
+     * @var array in short name => formatter config format.
+     */
+    public static $builtInFormatters = [
+        'from' => 'flexibuild\file\formatters\FromFormatter',
+        'chain' => 'flexibuild\file\formatters\ChainedFormatter',
+        'inline' => 'flexibuild\file\formatters\InlineFormatter',
+    ];
 
     /**
      * Gets context's file storage object.
@@ -159,6 +173,41 @@ class Context extends Component implements ContextInterface
     /**
      * Sets context's file formatters. You can use Yii config standarts.
      * @param array $formatters array each element of which is formatter object or formatter config.
+     * 
+     * You may use some helpful syntax for defining formatters. Examples:
+     * ```php
+     *  [
+     *      'format_name_1' => 'YOUR\FORMATTER\CLASS\NAME',
+     *      'format_name_2' => 'built-in-name',
+     *      'format_name_3' => [
+     *          'YOUR\FORMATTER\CLASS\NAME',
+     *          'param1' => 'value1',
+     *          'param2' => 'value2',
+     *      ],
+     *      'format_name_4' => [
+     *          'class' => 'YOUR\FORMATTER\CLASS\NAME',
+     *          'param1' => 'value1',
+     *          'param2' => 'value2',
+     *      ],
+     *      'format_name_5' => ['built-in-name', 'param1' => 'value1', 'param2' => 'value2'],
+     *      'format_name_6' => function ($readFilePath, $formatter) {
+     *          // your logic, where
+     *          // - $readFilePath: string, path to file, that must be formatted,
+     *          // - $formatter: InlineFormatter, instance of self formatter object.
+     *      },
+     * 
+     *      // built-in concrete examples
+     *      'format_name_7' => ['from', 'from' => 'format_name_x', 'formatter' => [
+     *          // formatter configuration in a similar way, for example:
+     *          'YOUR\FORMATTER\CLASS\NAME',
+     *      ]]
+     *      'format_name_8' => ['chain', 'formatters' => [
+     *          // formatters array, each element is a configuration in a similar way, for example:
+     *          'YOUR\FORMATTER\CLASS\NAME1',
+     *          'YOUR\FORMATTER\CLASS\NAME2',
+     *      ]],
+     *  ]
+     * ```
      */
     public function setFormatters($formatters)
     {
@@ -193,26 +242,52 @@ class Context extends Component implements ContextInterface
         }
 
         $formatter = $this->_formatters[$name];
-        if (!is_object($formatter)) {
-            $formatter = Yii::createObject($formatter);
-            if ($formatter instanceof Formatter) {
-                if ($formatter->context === null) {
-                    $formatter->context = $this;
-                }
-                if ($formatter->name === null) {
-                    $formatter->name = $name;
-                }
-            } elseif ($formatter instanceof Object) {
-                if ($formatter->canGetProperty('context') && $formatter->canSetProperty('context') && $formatter->context === null) {
-                    $formatter->context = $this;
-                }
-                if ($formatter->canGetProperty('name') && $formatter->canSetProperty('name') && $formatter->name === null) {
-                    $formatter->name = $name;
-                }
-            }
+        return $this->_formatters[$name] = $this->instantiateFormatter($formatter, $name);
+    }
+
+    /**
+     * Creates formatter by config.
+     * @param mixed $formatter an instance of [[FormatterInterface]] or config for creating it.
+     * @param string|null $name the name of formatter. Null meaning the formatter has not a name (by default).
+     * @return FormatterInterface created formatter.
+     */
+    public function instantiateFormatter($formatter, $name = null)
+    {
+        if (is_object($formatter)) {
+            return $formatter;
         }
 
-        return $this->_formatters[$name] = $formatter;
+        if ($formatter instanceof \Closure) {
+            $formatter = ['inline', 'format' => $formatter];
+        } elseif (is_string($formatter)) {
+            $formatter = [$formatter];
+        }
+        if (is_array($formatter) && isset($formatter[0])) {
+            if (isset(static::$builtInFormatters[$formatter[0]])) {
+                $className = static::$builtInFormatters[$formatter[0]];
+            } else {
+                $className = $formatter[0];
+            }
+            unset($formatter[0]);
+            $formatter = array_merge(['class' => $className], $formatter);
+        }
+
+        $formatter = Yii::createObject($formatter);
+        if ($formatter instanceof Formatter) {
+            if ($formatter->context === null) {
+                $formatter->context = $this;
+            }
+            if ($name !== null && $formatter->name === null) {
+                $formatter->name = $name;
+            }
+        } elseif ($formatter instanceof Object) {
+            if ($formatter->canGetProperty('context') && $formatter->canSetProperty('context') && $formatter->context === null) {
+                $formatter->context = $this;
+            }
+            if ($name !== null && $formatter->canGetProperty('name') && $formatter->canSetProperty('name') && $formatter->name === null) {
+                $formatter->name = $name;
+            }
+        }
     }
 
     /**
@@ -307,7 +382,7 @@ class Context extends Component implements ContextInterface
      * @return File
      * @throws InvalidConfigException
      */
-    public function instantiateFile($params = [])
+    public function createFile($params = [])
     {
         $params = array_merge([
             'class' => $this->fileClass,

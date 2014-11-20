@@ -361,7 +361,9 @@ class ModelBehavior extends Behavior
         if (isset($this->_files[$dataAttribute])) {
             $file = $this->_files[$dataAttribute];
         } else {
-            $this->_files[$dataAttribute] = $this->instantiateFile($name);
+            $this->_files[$dataAttribute] = $file = $this->getFileContext($name)->createFile();
+            $file->owner = $this;
+            $file->dataAttribute = $dataAttribute;
         }
 
         if (!isset($this->_handledFileAttributes[$dataAttribute][$name])) {
@@ -394,7 +396,7 @@ class ModelBehavior extends Behavior
         if ($value === null) {
             $file->clearFile();
         } elseif (is_string($value)) {
-            $file->populateFileData(value);
+            $file->populateFileData($value);
         } elseif ($value instanceof UploadedFile) {
             $file->populateFromUploadedFile($value);
         } else {

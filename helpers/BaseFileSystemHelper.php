@@ -179,7 +179,7 @@ class BaseFileSystemHelper extends BaseFileHelper
                     return true;
                 }
             } else {
-                /* @var $charset string charset will isset here */
+                /* @var $charset string charset */ // will isset here
                 if (mb_strtolower($dirFile, $charset) === $filename) {
                     closedir($handle);
                     return true;

@@ -13,6 +13,7 @@ use yii\helpers\Url;
 use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\Storage;
 use flexibuild\file\contexts\Context;
+use flexibuild\file\formatters\FromFormatter;
 use flexibuild\file\events\CannotGetUrlEvent;
 use flexibuild\file\events\CannotGetUrlHandlers;
 use flexibuild\file\events\DataChangedEvent;
@@ -599,6 +600,91 @@ class File extends UploadedFile
      */
     public function generateFormat($format, $regenerate = false)
     {
+        list($formattedTmpFile, $canUnlink) = $this->generateFormatInternal($format, $regenerate);
+        if ($canUnlink && !@unlink($formattedTmpFile)) {
+            Yii::warning("Cannot remove temporary formatted file '$formattedTmpFile'.", __METHOD__);
+        }
+    }
+
+    /**
+     * !!!
+     * @param array $formats
+     * @param boolean $regenerate
+     * 
+     * @throws InvalidParamException
+     * @throws InvalidCallException
+     * @throws InvalidConfigException if `$formats` hierarchy has cycles.
+     */
+    public function generateFormats($formats, $regenerate = false)
+    {
+        if (!count($formats)) {
+            return;
+        }
+
+        $formats = array_unique($formats);
+        $formats = array_combine($formats, $formats);
+        $preparedFormats = [];
+
+        while (count($formats)) {
+            $formattersToGenerate = [];
+            $firstBadFormatter = null;
+            foreach ($formats as $format) {
+                $formatter = $this->context->getFormatter($format);
+                if (!$formatter instanceof FromFormatter) {
+                    $formattersToGenerate[] = $format;
+                } elseif (isset($preparedFormats[$formatter->from]) || !isset($formats[$formatter->from])) {
+                    $formattersToGenerate[] = $format;
+                } elseif ($firstBadFormatter === null) {
+                    $firstBadFormatter = $formatter;
+                }
+            }
+
+            if (!count($formattersToGenerate)) {
+                /* @var $firstBadFormatter FromFormatter */ // will isset here
+                throw new InvalidConfigException("Formatter '$firstBadFormatter->name' of '{$this->context->name}' context has a cycle in own formatters hierarchy.");
+            }
+
+            foreach ($formattersToGenerate as $format) {
+                $formatter = $this->context->getFormatter($format);
+                if (!$formatter instanceof FromFormatter) {
+                    $preparedFormats[$format] = $this->generateFormatInternal($format, $regenerate);
+                } else {
+                    if (!isset($preparedFormats[$formatter->from])) {
+                        $preparedFormats[$formatter->from] = $this->generateFormatInternal($formatter->from, false);
+                    }
+                    $preparedFormats[$format] = $this->generateFormatInternal($format, $regenerate, $preparedFormats[$formatter->from][0]);
+                }
+                unset($formats[$format]);
+            }
+        }
+
+        foreach ($preparedFormats as $format => $tmpFileData) {
+            list($tmpFileName, $canUnlink) = $tmpFileData;
+            if ($canUnlink && !@unlink($tmpFileName)) {
+                Yii::warning("Cannot remove temporary formatted file '$tmpFileName'.", __METHOD__);
+            }
+        }
+    }
+
+    /**
+     * @internal internally used in [[self::generateFormat()]] & [[self::generateFormats()]].
+     * Generates formatted version of file.
+     * 
+     * @param string $format the name of format.
+     * @param boolean $regenerate whether formatted file must be generated even if it exists.
+     * @param string|null $tmpNameDependentFile path to tmp filename of dependent formatted version.
+     * It's used only for [[FromFormatter]]. 'Dependent' means the temp filename of [[FromFormatter::$from]] file.
+     * 
+     * @return array array that contains 2 elements:
+     * 
+     * - string (index 0), temp file path to the new formatted version of file.
+     * - boolean (index 1), whether temp file can be unlinked.
+     * !!!
+     * @throws InvalidParamException
+     * @throws InvalidCallException
+     */
+    protected function generateFormatInternal($format, $regenerate = false, $tmpNameDependentFile = null)
+    {
         if ($this->status !== self::STATUS_INITIALIZED_FILE) {
             if ($this->status === self::STATUS_UPLOADED_FILE) {
                 throw new InvalidCallException('Cannot generate format for just uploaded file.');
@@ -607,15 +693,23 @@ class File extends UploadedFile
             }
         }
 
+        $data = $this->getData();
         if (!$regenerate && $this->exists($format)) {
-            return;
+            return [$this->getTempName(), false];
         }
 
-        $data = $this->getData();
         $storage = $this->context->getStorage();
         $formatter = $this->context->getFormatter($format);
-        $readFilePath = $this->getTempName();
-        $formattedTmpFile = $formatter->format($readFilePath);
+        if ($formatter instanceof FromFormatter) {
+            if ($tmpNameDependentFile === null) {
+                $this->generateFormat($formatter->from, false);
+                $tmpNameDependentFile = $this->context->getStorage()->getReadFilePath($this->getData(), $formatter->from);
+            }
+            $formattedTmpFile = $formatter->format($tmpNameDependentFile, true);
+        } else {
+            $readFilePath = $this->getTempName();
+            $formattedTmpFile = $formatter->format($readFilePath);
+        }
 
         if ($storage instanceof Storage) {
             $resultData = $storage->saveFormattedFileByCopying($data, $formattedTmpFile, $format);
@@ -628,26 +722,11 @@ class File extends UploadedFile
             }
         }
 
-        if (!@unlink($formattedTmpFile)) {
-            Yii::warning("Cannot remove temporary formatted file '$formattedTmpFile'.", __METHOD__);
-        }
         if ($resultData === false) {
             throw new InvalidConfigException("Cannot save formatted as '$format' file for '$this->name' in the '{$this->context->name}' context.");
         }
         $this->setData($resultData);
-    }
-
-    /**
-     * !!!
-     * @param array $formats
-     * @param boolean $regenerate
-     */
-    public function generateFormats($formats, $regenerate = false)
-    {
-        //!!! optimize for formatters chunks (sets)
-        foreach ($formats as $format) {
-            $this->generateFormat($format, $regenerate);
-        }
+        return [$formattedTmpFile, true];
     }
 
     /**
