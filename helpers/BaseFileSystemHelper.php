@@ -4,6 +4,7 @@ namespace flexibuild\file\helpers;
 
 use Yii;
 use yii\base\InvalidParamException;
+use yii\base\InvalidConfigException;
 use yii\helpers\BaseFileHelper;
 
 /**
@@ -14,6 +15,13 @@ use yii\helpers\BaseFileHelper;
  */
 class BaseFileSystemHelper extends BaseFileHelper
 {
+    /**
+     * @var string|null path to directory which can be used for storing temp files.
+     * You can use Yii aliases.
+     * Null meaning `sys_get_temp_dir()` will be used.
+     */
+    static $tempDir = '@flexibuild/temp';
+
     /**
      * Method works like php `basename` function. Rewrited because php's basename
      * works incorrectly with some utf8 names.
@@ -527,5 +535,45 @@ class BaseFileSystemHelper extends BaseFileHelper
         closedir($handle);
 
         return $count;
+    }
+
+    /**
+     * Creates and returns temp directory.
+     * @return string full path to temp directory
+     * @throws InvalidConfigException if cannot create dir.
+     */
+    public static function getTempDir()
+    {
+        if (static::$tempDir === null) {
+            return sys_get_temp_dir();
+        }
+        $dir = rtrim(Yii::getAlias(static::$tempDir), '\/');
+        if (!static::createDirectory($dir, 0777, true)) {
+            throw new InvalidConfigException("Cannot create temporary directory: $dir");
+        }
+        return $dir;
+    }
+
+    /**
+     * Generates new name for temporary file. This method creates directory if not exists.
+     * This method use [[self::$tempDir]] param as directory for keeping temp files.
+     * @param string|null $extension extension which file must have.
+     * @return string full path to temp file.
+     * @throws InvalidConfigException if cannot create directory.
+     */
+    public static function getNewTempFilename($extension = null)
+    {
+        $dir = static::getTempDir();
+        $fileName = false;
+
+        while ($fileName === false) {
+            $fileName = Yii::$app->getSecurity()->generateRandomString(16) . 
+                ($extension === null ? ".$extension" : '');
+            if (file_exists($fileName)) {
+                $fileName = false;
+            }
+        }
+
+        return $fileName;
     }
 }

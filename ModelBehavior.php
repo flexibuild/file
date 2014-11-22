@@ -361,7 +361,7 @@ class ModelBehavior extends Behavior
         if (isset($this->_files[$dataAttribute])) {
             $file = $this->_files[$dataAttribute];
         } else {
-            $this->_files[$dataAttribute] = $file = $this->getFileContext($name)->createFile();
+            $this->_files[$dataAttribute] = $file = $this->createFile($name);
             $file->owner = $this;
             $file->dataAttribute = $dataAttribute;
         }
@@ -416,17 +416,17 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
-     * @param string $name
-     * @return File
+     * Creates new File object.
+     * @param string $name the name of file attribute for which file must be created.
+     * @return File created file instance.
      */
-    protected function instantiateFile($name)
+    protected function createFile($name)
     {
         $dataAttribute = $this->getFileDataAttribute($name);
         $context = $this->getFileContext($name);
         $data = $this->owner->{$dataAttribute};
 
-        $file = $context->instantiateFile();
+        $file = $context->createFile();
         $file->dataAttribute = $dataAttribute;
         $file->owner = $this;
         if ($data === null) {

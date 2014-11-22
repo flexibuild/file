@@ -49,6 +49,7 @@ class FromFormatter extends Formatter
         if (!$isFormatPath) {
             $formatter = $this->context->getFormatter($this->from);
             $readFilePath = $formatter->format($readFilePath);
+            $unlinkFilePath = $readFilePath;
         }
 
         $this->initFormatter();
@@ -63,6 +64,10 @@ class FromFormatter extends Formatter
             throw $ex;
         }
         $this->_inProcess = false;
+
+        if (isset($unlinkFilePath) && !@unlink($unlinkFilePath)) {
+            Yii::warning("Cannot unlink tmp file: $unlinkFilePath", __METHOD__);
+        }
         return $result;
     }
 

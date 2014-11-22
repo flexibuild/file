@@ -19,7 +19,7 @@ use flexibuild\file\contexts\Context;
  *
  * @author SeynovAM <sejnovalexey@gmail.com>
  * 
- * @property array $allFiles array of string datas, which of that can be used for loading file.
+ * @property array $allFiles array of string datas, which of that can be used for manipulating with file.
  */
 abstract class Storage extends Object implements StorageInterface
 {
@@ -50,20 +50,20 @@ abstract class Storage extends Object implements StorageInterface
     abstract public function saveFile($content, $originFilename = null);
 
     /**
-     * Saves new file by copying from another. Returns data that can be used for loading file in the future.
+     * Saves new file by copying from another. Returns data that can be used for manipulating with file in the future.
      * 
      * Note: override this method in subclass if your storage allows copy method (more quickly).
      * 
      * @param string $sourceFilePath path to source file that will be copied.
      * @param string|null $originFilename name of origin file.
      * If storage allowed saving files with origin filenames it must use this param for that.
-     * @return string|boolean string data that can be used for loading file in the future.
+     * @return string|boolean string data that can be used for manipulating with file in the future.
      * False meaning file was not save.
      */
     public function saveFileByCopying($sourceFilePath, $originFilename = null)
     {
         if (false === $content = @file_get_contents($sourceFilePath)) {
-            Yii::warning("Cannot read content of the file '$sourceFilePath'.", __METHOD__);
+            Yii::warning("Cannot load file contents '$sourceFilePath'.", __METHOD__);
             return false;
         }
         return $this->saveFile($content, $originFilename);
@@ -127,7 +127,7 @@ abstract class Storage extends Object implements StorageInterface
 
     /**
      * Returns the list of formats that available for the file.
-     * @param string $data data that should be used for loading file formats.
+     * @param string $data data that should be used for manipulating with file formats.
      * @return array array of all file formats names.
      */
     abstract public function getFormatList($data);
@@ -135,7 +135,7 @@ abstract class Storage extends Object implements StorageInterface
     /**
      * Searches and returns the list of all available files.
      * You must implement this method in your subclass for getting the file list functionality.
-     * @return array array of string datas, which of that can be used for loading file.
+     * @return array array of string datas, which of that can be used for manipulating with file.
      * @throws NotSupportedException
      */
     public function getAllFiles()

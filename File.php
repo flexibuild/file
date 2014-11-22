@@ -33,7 +33,6 @@ use flexibuild\file\events\DataChangedEvent;
  * 
  * @property string $data !!!
  * 
- * @property-read string|null $defaultUrl !!!
  * @property-read string $url url to source file !!!
  * @property-read FileHandler $handler !!!
  * @property-read boolean $isEmpty whether file is empty or not.
@@ -44,6 +43,7 @@ use flexibuild\file\events\DataChangedEvent;
  */
 class File extends UploadedFile
 {
+// !!! file may be must not use ->context->getStorage(), it must use ->context only.
     /**
      * Const that keeps value for status which means the file is empty.
      */
@@ -147,7 +147,7 @@ class File extends UploadedFile
     private $_handler;
 
     /**
-     * @var string data that can be used for loading file from context's storage.
+     * @var string data that can be used for manipulating with file from context's storage.
      */
     private $_data;
 
@@ -592,98 +592,13 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
-     * @param string $format
-     * @param boolean $regenerate
-     * @throws InvalidParamException
-     * @throws InvalidCallException
+     * Generates formatted version of file.
+     * @param string $format name of format that must be generated.
+     * @param boolean $regenerate whether formatted version of file must be regenerated.
+     * If false and formatted version exists the method will not start generate process.
+     * @throws InvalidCallException if file has not initialized yet.
      */
     public function generateFormat($format, $regenerate = false)
-    {
-        list($formattedTmpFile, $canUnlink) = $this->generateFormatInternal($format, $regenerate);
-        if ($canUnlink && !@unlink($formattedTmpFile)) {
-            Yii::warning("Cannot remove temporary formatted file '$formattedTmpFile'.", __METHOD__);
-        }
-    }
-
-    /**
-     * !!!
-     * @param array $formats
-     * @param boolean $regenerate
-     * 
-     * @throws InvalidParamException
-     * @throws InvalidCallException
-     * @throws InvalidConfigException if `$formats` hierarchy has cycles.
-     */
-    public function generateFormats($formats, $regenerate = false)
-    {
-        if (!count($formats)) {
-            return;
-        }
-
-        $formats = array_unique($formats);
-        $formats = array_combine($formats, $formats);
-        $preparedFormats = [];
-
-        while (count($formats)) {
-            $formattersToGenerate = [];
-            $firstBadFormatter = null;
-            foreach ($formats as $format) {
-                $formatter = $this->context->getFormatter($format);
-                if (!$formatter instanceof FromFormatter) {
-                    $formattersToGenerate[] = $format;
-                } elseif (isset($preparedFormats[$formatter->from]) || !isset($formats[$formatter->from])) {
-                    $formattersToGenerate[] = $format;
-                } elseif ($firstBadFormatter === null) {
-                    $firstBadFormatter = $formatter;
-                }
-            }
-
-            if (!count($formattersToGenerate)) {
-                /* @var $firstBadFormatter FromFormatter */ // will isset here
-                throw new InvalidConfigException("Formatter '$firstBadFormatter->name' of '{$this->context->name}' context has a cycle in own formatters hierarchy.");
-            }
-
-            foreach ($formattersToGenerate as $format) {
-                $formatter = $this->context->getFormatter($format);
-                if (!$formatter instanceof FromFormatter) {
-                    $preparedFormats[$format] = $this->generateFormatInternal($format, $regenerate);
-                } else {
-                    if (!isset($preparedFormats[$formatter->from])) {
-                        $preparedFormats[$formatter->from] = $this->generateFormatInternal($formatter->from, false);
-                    }
-                    $preparedFormats[$format] = $this->generateFormatInternal($format, $regenerate, $preparedFormats[$formatter->from][0]);
-                }
-                unset($formats[$format]);
-            }
-        }
-
-        foreach ($preparedFormats as $format => $tmpFileData) {
-            list($tmpFileName, $canUnlink) = $tmpFileData;
-            if ($canUnlink && !@unlink($tmpFileName)) {
-                Yii::warning("Cannot remove temporary formatted file '$tmpFileName'.", __METHOD__);
-            }
-        }
-    }
-
-    /**
-     * @internal internally used in [[self::generateFormat()]] & [[self::generateFormats()]].
-     * Generates formatted version of file.
-     * 
-     * @param string $format the name of format.
-     * @param boolean $regenerate whether formatted file must be generated even if it exists.
-     * @param string|null $tmpNameDependentFile path to tmp filename of dependent formatted version.
-     * It's used only for [[FromFormatter]]. 'Dependent' means the temp filename of [[FromFormatter::$from]] file.
-     * 
-     * @return array array that contains 2 elements:
-     * 
-     * - string (index 0), temp file path to the new formatted version of file.
-     * - boolean (index 1), whether temp file can be unlinked.
-     * !!!
-     * @throws InvalidParamException
-     * @throws InvalidCallException
-     */
-    protected function generateFormatInternal($format, $regenerate = false, $tmpNameDependentFile = null)
     {
         if ($this->status !== self::STATUS_INITIALIZED_FILE) {
             if ($this->status === self::STATUS_UPLOADED_FILE) {
@@ -693,40 +608,33 @@ class File extends UploadedFile
             }
         }
 
-        $data = $this->getData();
-        if (!$regenerate && $this->exists($format)) {
-            return [$this->getTempName(), false];
-        }
+        $data = $this->context->generateFormat($this->getData(), $format, $regenerate);
+        $this->setData($data);
+    }
 
-        $storage = $this->context->getStorage();
-        $formatter = $this->context->getFormatter($format);
-        if ($formatter instanceof FromFormatter) {
-            if ($tmpNameDependentFile === null) {
-                $this->generateFormat($formatter->from, false);
-                $tmpNameDependentFile = $this->context->getStorage()->getReadFilePath($this->getData(), $formatter->from);
-            }
-            $formattedTmpFile = $formatter->format($tmpNameDependentFile, true);
-        } else {
-            $readFilePath = $this->getTempName();
-            $formattedTmpFile = $formatter->format($readFilePath);
-        }
-
-        if ($storage instanceof Storage) {
-            $resultData = $storage->saveFormattedFileByCopying($data, $formattedTmpFile, $format);
-        } else {
-            if (false === $content = @file_get_contents($formattedTmpFile)) {
-                Yii::warning("Cannot read content of the file '$formattedTmpFile'.", __METHOD__);
-                $resultData = false;
+    /**
+     * Generates set of formatters. This method optimized formats generating according to [[FormatterFrom]] formatters.
+     * 
+     * @param array|null $formats array names of formats that must be generated.
+     * Null meaning all formats will be generated.
+     * @param boolean $regenerate whether formatted version of file must be regenerated.
+     * If false and formatted version exists the method will not start generate process.
+     * @throws InvalidCallException if file has not initialized yet.
+     */
+    public function generateFormats($formats = null, $regenerate = false)
+    {
+        if ($this->status !== self::STATUS_INITIALIZED_FILE) {
+            if ($this->status === self::STATUS_UPLOADED_FILE) {
+                throw new InvalidCallException('Cannot generate format for just uploaded file.');
             } else {
-                $resultData = $storage->saveFormattedFile($data, $content, $format);
+                throw new InvalidCallException('Cannot generate format for empty file attribute.');
             }
         }
 
-        if ($resultData === false) {
-            throw new InvalidConfigException("Cannot save formatted as '$format' file for '$this->name' in the '{$this->context->name}' context.");
-        }
-        $this->setData($resultData);
-        return [$formattedTmpFile, true];
+        $data = $formats === null
+            ? $this->context->generateAllFormats($this->getData(), $regenerate)
+            : $this->context->generateFormats($this->getData(), $formats, $regenerate);
+        $this->setData($data);
     }
 
     /**
@@ -781,28 +689,18 @@ class File extends UploadedFile
      */
     public function save($deleteTempFile = true)
     {
-        if (!$this->getHandler()->triggerBeforeSave()) {
-            return false;
-        }
-
         if ($this->getError() != UPLOAD_ERR_OK) {
             return false;
         }
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             return false;
         }
-
-        $storage = $this->context->getStorage();
-        $tempFile = $this->getTempName();
-        if ($storage instanceof Storage) {
-            $data = $storage->saveFileByCopying($tempFile, $this->getName());
-        } else {
-            if (false === $content = @file_get_contents($tempFile)) {
-                $data = false;
-            } else {
-                $data = $storage->saveFile($content, $this->getName());
-            }
+        if (!$this->beforeSave()) {
+            return false;
         }
+
+        $tempFile = $this->getTempName();
+        $data = $this->context->saveFile($tempFile, $this->getName());
 
         if ($data === false) {
             return false;
@@ -811,9 +709,48 @@ class File extends UploadedFile
         if ($deleteTempFile && !@unlink($tempFile)) {
             Yii::warning("Cannot remove temporary uploaded file '$tempFile'.", __METHOD__);
         }
+
         $this->populateFileData($data);
-        $this->getHandler()->triggerAfterSave();
+        $this->afterSave();
         return true;
+    }
+
+    /**
+     * Method that will be called before saving file.
+     * If you override this method don't forget call parent::beforeSave().
+     * @return boolean whether continue saving process.
+     */
+    public function beforeSave()
+    {
+        return $this->getHandler()->triggerBeforeSave();
+    }
+
+    /**
+     * Method that will be called before file deleting.
+     * If you override this method don't forget call parent::afterSave().
+     */
+    public function afterSave()
+    {
+        $this->getHandler()->triggerAfterSave();
+    }
+
+    /**
+     * Method that will be called before file deleting.
+     * If you override this method don't forget call parent::beforeDelete().
+     * @return boolean whether need to continue deleting process.
+     */
+    public function beforeDelete()
+    {
+        return $this->getHandler()->triggerBeforeDelete();
+    }
+
+    /**
+     * Method that will be called after deleting file.
+     * If you override this method don't forget call parent::afterDelete().
+     */
+    public function afterDelete()
+    {
+        $this->getHandler()->triggerAfterDelete();
     }
 
     /**
@@ -822,11 +759,17 @@ class File extends UploadedFile
      * This method triggers 'beforeDelete' and 'afterDelete' events.
      * You can set [[FileEvent::$valid]] property as false in 'beforeDelete' event handler for stopping deleting process.
      * 
+     * @param string|null $format string $format  string name of format which will be deleted.
+     * Null meaning source file was deleted.
      * @return boolean whether file has been successfully deleted.
      */
-    public function delete()
+    public function delete($format = null)
     {
-        if (!$this->getHandler()->triggerBeforeDelete()) {
+        if ($format !== null) {
+            return $this->deleteFormat($format);
+        }
+
+        if (!$this->beforeDelete()) {
             return false;
         }
 
@@ -837,7 +780,7 @@ class File extends UploadedFile
             } else {
                 $result = false;
             }
-        } elseif ($this->status = self::STATUS_UPLOADED_FILE) {
+        } elseif ($this->status === self::STATUS_UPLOADED_FILE) {
             $result = @unlink($this->getTempName());
         } else {
             $result = false;
@@ -845,7 +788,33 @@ class File extends UploadedFile
 
         if ($result) {
             $this->clearFile();
-            $this->handler->triggerAfterDelete();
+            $this->afterDelete();
+        }
+        return $result;
+    }
+
+    /**
+     * Deletes formatted version of file.
+     * @param string $format name of format that must be deleted.
+     * @return boolean whether file was deleted.
+     */
+    public function deleteFormat($format)
+    {
+        if ($this->status !== self::STATUS_INITIALIZED_FILE) {
+            return false;
+        } elseif (!$this->getHandler()->triggerBeforeDelete($format)) {
+            return false;
+        }
+
+        $storage = $this->context->getStorage();
+        if ($storage instanceof Storage) {
+            $result = $storage->deleteFormattedFile($this->getData(), $format);
+        } else {
+            $result = false;
+        }
+
+        if ($result) {
+            $this->getHandler()->triggerAfterDelete($format);
         }
         return $result;
     }

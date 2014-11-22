@@ -126,6 +126,17 @@ class FileSystemStorage extends Storage
      */
     public function saveFile($content, $originFilename = null)
     {
+        if ($this->context && $this->context->getDefaultFormatter() !== null) {
+            $tmpFileName = FileSystemHelper::getNewTempFilename(FileSystemHelper::extension($originFilename));
+            if (false === @file_put_contents($tmpFileName, $content)) {
+                throw new InvalidValueException("Cannot save temp file: $tmpFileName");
+            }
+            $result = $this->_saveFileByCopying($tmpFileName, $originFilename);
+            if (!@unlink($tmpFileName)) {
+                //!!!
+            }
+        }
+
         $filename = $this->createNewFilename($originFilename);
         $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
         $rootDir = $this->getRootDirectory();
@@ -142,6 +153,17 @@ class FileSystemStorage extends Storage
      * @inheritdoc
      */
     public function saveFileByCopying($sourceFilePath, $originFilename = null)
+    {
+        return $this->_saveFileByCopying($sourceFilePath, $originFilename);
+    }
+
+    /**
+     * Saves new file from another file. Internally used in [[self::saveFile()]] and [[self::saveFileByCopying()]].
+     * @param string $sourceFilePath path to file that must be copied.
+     * @param string $originFilename the name of origin file.
+     * @return string|boolean string file data that must be used for manipulating with file or false if file was not saved.
+     */
+    private function _saveFileByCopying($sourceFilePath, $originFilename = null)
     {
         $filename = $this->createNewFilename($originFilename);
         $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);

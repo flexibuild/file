@@ -10,11 +10,11 @@ namespace flexibuild\file\storages;
 interface StorageInterface
 {
     /**
-     * Saves content to file and returns data that can be used for loading file in the future.
+     * Saves content to file and returns data that can be used for manipulating with file in the future.
      * @param string $content content of file that will be saved.
      * @param string|null $originFilename name of origin file.
      * If storage allowed saving files with origin filenames it must use this param for that.
-     * @return string|boolean string data that can be used for loading file in the future.
+     * @return string|boolean string data that can be used for manipulating with file in the future.
      * False meaning file was not save.
      */
     public function saveFile($content, $originFilename = null);
@@ -68,7 +68,7 @@ interface StorageInterface
 
     /**
      * Returns the list of formats that available for the file.
-     * @param string $data data that should be used for loading file formats.
+     * @param string $data data that should be used for manipulating with file formats.
      * @return array array of all file formats names.
      */
     public function getFormatList($data);

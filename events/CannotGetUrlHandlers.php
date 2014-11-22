@@ -141,6 +141,29 @@ class CannotGetUrlHandlers
     }
 
     /**
+     * Handler for [[CannotGetUrlEvent]], this handler will return url of source (non-foormatted) file.
+     * This handler works only for [[CannotGetUrlEvent::CASE_FORMAT_NOT_FOUND]] case.
+     * @param CannotGetUrlEvent $event
+     */
+    public static function returnSourceFileUrl($event)
+    {
+        if ($event->case !== CannotGetUrlEvent::CASE_FORMAT_NOT_FOUND) {
+            return;
+        }
+
+        try {
+            $url = $event->file->getUrl(null, $event->scheme);
+            if ($url !== null) {
+                $event->url = $url;
+                $event->handled = true;
+            }
+        } catch (\Exception $ex) {
+            $event->case = CannotGetUrlEvent::CASE_EXCEPTION_THROWED;
+            $event->exception = $ex;
+        }
+    }
+
+    /**
      * Handler for [[CannotGetUrlEvent]], this handler will return empty string ('').
      * 
      * @param CannotGetUrlEvent $event

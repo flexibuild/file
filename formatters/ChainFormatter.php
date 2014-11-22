@@ -2,12 +2,14 @@
 
 namespace flexibuild\file\formatters;
 
+use Yii;
+
 /**
  * Formatter that applies a set of other formatters.
  *
  * @author SeynovAM <sejnovalexey@gmail.com>
  */
-class ChainedFormatter extends Formatter
+class ChainFormatter extends Formatter
 {
     /**
      * @var array array of formatters that must be applied.
@@ -21,10 +23,23 @@ class ChainedFormatter extends Formatter
     public function format($readFilePath)
     {
         $this->initFormatters();
+        $filesToUnlink = [];
+
         foreach ($this->formatters as $formatter) {
             /* @var $formatter FormatterInterface */
             $readFilePath = $formatter->format($readFilePath);
+            $filesToUnlink[] = $readFilePath;
         }
+
+        if (count($filesToUnlink)) {
+            array_pop($filesToUnlink);
+        }
+        foreach ($filesToUnlink as $filepath) {
+            if (!@unlink($filepath)) {
+                Yii::warning("Cannot unlink file: $filepath", __METHOD__);
+            }
+        }
+
         return $readFilePath;
     }
 

@@ -10,6 +10,8 @@ use flexibuild\file\events\CannotGetUrlHandlers;
 use flexibuild\file\events\DataChangedEvent;
 use flexibuild\file\events\FileEvent;
 use flexibuild\file\events\FileValidEvent;
+use flexibuild\file\events\BeforeDeleteEvent;
+use flexibuild\file\events\AfterDeleteEvent;
 
 /**
  * Class that implements events logic for [[File]] class.
@@ -44,13 +46,13 @@ class FileHandler extends Component
     const EVENT_AFTER_SAVE = 'afterSave';
 
     /**
-     * @event FileValidEvent an event raised before file deleting.
-     * You can set [[FileValidEvent::$valid]] property as false to stop deleting process.
+     * @event BeforeDeleteEvent an event raised before file deleting.
+     * You can set [[BeforeDeleteEvent::$valid]] property as false to stop deleting process.
      */
     const EVENT_BEFORE_DELETE = 'beforeDelete';
 
     /**
-     * @event FileEvent an event raised after file deleting.
+     * @event AfterDeleteEvent an event raised after file deleting.
      */
     const EVENT_AFTER_DELETE = 'afterDelete';
 
@@ -144,14 +146,17 @@ class FileHandler extends Component
 
     /**
      * Triggers beforeDelete event.
+     * @param string $format  string name of format which will be deleted.
+     * Null meaning source file was deleted.
      * @return boolean whether continue deleting process or stop it.
      */
-    public function triggerBeforeDelete()
+    public function triggerBeforeDelete($format = null)
     {
-        $event = new FileValidEvent();
+        $event = new BeforeDeleteEvent();
         $event->sender = $this;
         $event->file = $this->file;
         $event->valid = true;
+        $event->format = $format;
 
         $this->trigger(self::EVENT_BEFORE_DELETE, $event);
         return (bool) $event->valid;
@@ -159,12 +164,15 @@ class FileHandler extends Component
 
     /**
      * Triggers afterDelete event.
+     * @param string $format  string name of format which will be deleted.
+     * Null meaning source file was deleted.
      */
-    public function triggerAfterDelete()
+    public function triggerAfterDelete($format = null)
     {
-        $event = new FileEvent();
+        $event = new AfterDeleteEvent();
         $event->sender = $this;
         $event->file = $this->file;
+        $event->format = $format;
 
         $this->trigger(self::EVENT_AFTER_DELETE, $event);
     }
