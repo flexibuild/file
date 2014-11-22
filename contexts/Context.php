@@ -135,6 +135,8 @@ class Context extends Component implements ContextInterface
         'image/thumb' => 'flexibuild\file\formatters\image\ThumbFormatter',
         'image/watermark' => 'flexibuild\file\formatters\image\WatermarkFormatter',
         'image/grayscale' => 'flexibuild\file\formatters\image\GrayscaleFormatter',
+
+        'pdf/preview' => 'flexibuild\file\formatters\pdf\PdfFormatter',
     ];
 
     /**

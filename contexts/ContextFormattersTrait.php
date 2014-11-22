@@ -33,7 +33,6 @@ use flexibuild\file\formatters\ChainedFormatter;
  */
 trait ContextFormattersTrait
 {
-
     /**
      * You can use this param for setting your formatters short aliases and use the last in `$formatters` config.
      * @var array in alias => string|array formatter config (in Yii style).
@@ -153,7 +152,8 @@ trait ContextFormattersTrait
         if (is_array($formatter) && isset($formatter[0])) {
             if (isset($this->formattersAliases[$formatter[0]])) {
                 $className = $this->formattersAliases[$formatter[0]];
-            } elseif (isset(static::$builtInFormatters[$formatter[0]])) {
+            }
+            if (isset(static::$builtInFormatters[$formatter[0]])) {
                 $className = static::$builtInFormatters[$formatter[0]];
             } else {
                 $className = $formatter[0];
