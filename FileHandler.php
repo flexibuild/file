@@ -82,6 +82,10 @@ class FileHandler extends Component
      */
     public function triggerDataChangedEvent($oldData, $newData)
     {
+        if (!$this->hasEventHandlers(self::EVENT_DATA_CHANGED)) {
+            return;
+        }
+
         $event = new DataChangedEvent();
         $event->sender = $this;
         $event->file = $this->file;
@@ -101,18 +105,20 @@ class FileHandler extends Component
      */
     public function triggerCannotGetUrl($case, $format = null, $scheme = null, $exception = null)
     {
-        $event = new CannotGetUrlEvent();
-        $event->sender = $this;
-        $event->file = $this->file;
-        $event->case = $case;
-        $event->format = $format;
-        $event->scheme = $scheme;
-        $event->exception = $exception;
+        if ($this->hasEventHandlers(self::EVENT_CANNOT_GET_URL)) {
+            $event = new CannotGetUrlEvent();
+            $event->sender = $this;
+            $event->file = $this->file;
+            $event->case = $case;
+            $event->format = $format;
+            $event->scheme = $scheme;
+            $event->exception = $exception;
 
-        $this->trigger(self::EVENT_CANNOT_GET_URL, $event);
+            $this->trigger(self::EVENT_CANNOT_GET_URL, $event);
 
-        if ($event->url !== null) {
-            return $event->url;
+            if ($event->url !== null) {
+                return $event->url;
+            }
         }
         CannotGetUrlHandlers::throwException($event);
     }
@@ -123,6 +129,10 @@ class FileHandler extends Component
      */
     public function triggerBeforeSave()
     {
+        if (!$this->hasEventHandlers(self::EVENT_BEFORE_SAVE)) {
+            return true;
+        }
+
         $event = new FileValidEvent();
         $event->sender = $this;
         $event->file = $this->file;
@@ -137,6 +147,10 @@ class FileHandler extends Component
      */
     public function triggerAfterSave()
     {
+        if (!$this->hasEventHandlers(self::EVENT_AFTER_SAVE)) {
+            return;
+        }
+
         $event = new FileEvent();
         $event->sender = $this;
         $event->file = $this->file;
@@ -152,6 +166,10 @@ class FileHandler extends Component
      */
     public function triggerBeforeDelete($format = null)
     {
+        if (!$this->hasEventHandlers(self::EVENT_BEFORE_DELETE)) {
+            return true;
+        }
+
         $event = new BeforeDeleteEvent();
         $event->sender = $this;
         $event->file = $this->file;
@@ -169,6 +187,10 @@ class FileHandler extends Component
      */
     public function triggerAfterDelete($format = null)
     {
+        if (!$this->hasEventHandlers(self::EVENT_AFTER_DELETE)) {
+            return;
+        }
+
         $event = new AfterDeleteEvent();
         $event->sender = $this;
         $event->file = $this->file;
