@@ -206,7 +206,7 @@ class ModelBehavior extends Behavior
         // As a result, all file attributes will be considered safe and can be changed through setAttributes.
         // Choosing between security and performance choice was made on security.
         $this->validateFileAttributes();
-        $this->saveUploadedFiles();
+        $this->saveUploadedFiles(false);
     }
 
     /**
@@ -224,7 +224,7 @@ class ModelBehavior extends Behavior
      */
     public function beforeInsert($event)
     {
-        $this->saveUploadedFiles();
+        $this->saveUploadedFiles(false);
     }
 
     /**
@@ -242,7 +242,7 @@ class ModelBehavior extends Behavior
      */
     public function beforeUpdate($event)
     {
-        $this->saveUploadedFiles();
+        $this->saveUploadedFiles(false);
     }
 
     /**
@@ -362,8 +362,6 @@ class ModelBehavior extends Behavior
             $file = $this->_files[$dataAttribute];
         } else {
             $this->_files[$dataAttribute] = $file = $this->createFile($name);
-            $file->owner = $this;
-            $file->dataAttribute = $dataAttribute;
         }
 
         if (!isset($this->_handledFileAttributes[$dataAttribute][$name])) {
@@ -469,15 +467,17 @@ class ModelBehavior extends Behavior
     private $_validators;
 
     /**
-     * !!!
+     * @param array $attributeNames list of file attribute names that should be validated.
+     * If this parameter is empty, it means all file attributes should be validated.
+     * @return boolean whether file attributes validation is successfull without any error.
+     * @throws InvalidValueException if the behavior has invalid owner.
      */
-    public function validateFileAttributes()
+    public function validateFileAttributes($attributeNames = null)
     {
         if (!($owner = $this->owner) || !($owner instanceof Model)) {
-            return;
+            throw new InvalidValueException(get_class($this).' must be attached to an instance of '.Model::className().'.');
         }
 
-        $fileAttributes = $this->fileAttributes();
         if ($this->_validators === null) {
             $this->_validators = $this->createValidators();
         }
@@ -485,43 +485,78 @@ class ModelBehavior extends Behavior
         $scenario = $owner->getScenario();
         foreach ($this->_validators as $validator) {
             if ($validator->isActive($scenario)) {
-                $validator->validateAttributes($owner, [$fileAttributes]);
+                $validator->validateAttributes($owner, $attributeNames);
             }
         }
+
+        $attributeNames = is_array($attributeNames) ? $attributeNames : $this->fileAttributes();
+        foreach ($attributeNames as $attribute) {
+            if ($owner->hasErrors($attribute)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * Creates and returns list of all file attributes validators.
      * @return Validator[] list validators.
+     * @throws InvalidValueException if the behavior has invalid owner.
      */
     public function createValidators()
     {
         if (!($owner = $this->owner) || !($owner instanceof Model)) {
-            return [];
+            throw new InvalidValueException(get_class($this).' must be attached to an instance of '.Model::className().'.');
+        }
+
+        $contexts = new \SplObjectStorage();
+        foreach ($this->fileAttributes() as $fileAttribute) {
+            $context = $this->getFileContext($fileAttribute);
+            $fileAttributes = $contexts->offsetExists($context) ? $contexts->offsetGet($context) : [];
+            $fileAttributes[] = $fileAttribute;
+            $contexts->offsetSet($context, $fileAttributes);
         }
 
         $result = [];
-        foreach ($this->fileAttributes() as $fileAttribute) {
-            $context = $this->getFileContext($fileAttribute);
+        $contexts->rewind();
+        while ($contexts->valid()) {
+            $context = $contexts->key();
+            $fileAttributes = $contexts->current();
+
             foreach ($context->getValidators() as $validator) {
-                $validator = Validator::createValidator($validator[0], $owner, [$fileAttribute], array_slice($validator, 1));
+                $validator = Validator::createValidator($validator[0], $owner, $fileAttributes, array_slice($validator, 1));
                 $result[] = $validator;
             }
+
+            $contexts->next();
         }
+
         return $result;
     }
 
     /**
-     * Saves all uploaded files.
-     * @throws InvalidValueException if any file cannot be saved.
+     * Saves uploaded files.
+     * @param boolean $runValidation whether the validation must be called before saving.
+     * @param array|null $attributeNames list of file attribute names that need to be saved. Defaults to null,
+     * meaning all attributes that are loaded from DB will be saved.
+     * @throws InvalidValueException if the behavior has invalid owner or any file cannot be saved.
      */
-    public function saveUploadedFiles()
+    public function saveUploadedFiles($runValidation = true, $attributeNames = null)
     {
         if (!($owner = $this->owner) || !($owner instanceof Model)) {
-            return;
+            throw new InvalidValueException(get_class($this).' must be attached to an instance of '.Model::className().'.');
         }
 
+        if ($runValidation) {
+            $this->validateFileAttributes($attributeNames);
+        }
+
+        $attributeNames = is_array($attributeNames) ? array_fill_keys($attributeNames, true) : null;
         foreach ($this->fileAttributes() as $fileAttribute) {
+            if ($attributeNames !== null && !isset($attributeNames[$fileAttribute])) {
+                continue;
+            }
+
             $dataAttribute = $this->getFileDataAttribute($fileAttribute);
             $file = $this->getFileAttribute($fileAttribute);
 
