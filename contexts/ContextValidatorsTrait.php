@@ -12,7 +12,7 @@ use yii\validators\FileValidator;
  *
  * @author SeynovAM <sejnovalexey@gmail.com>
  */
-class ContextValidatorsTrait
+trait ContextValidatorsTrait
 {
     /**
      * @var array
