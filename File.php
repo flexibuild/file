@@ -67,7 +67,7 @@ class File extends UploadedFile
     public $status = self::STATUS_UPLOADED_FILE;
 
     /**
-     * @var Context !!!
+     * @var Context the context that created this file.
      */
     public $context;
 
