@@ -42,7 +42,7 @@ class FileSystemStorage extends Storage
     /**
      * @var int mode for creating new files.
      */
-    public $createFileMode = 0777;
+    public $createFileMode = 0666;
 
     /**
      * @var integer|null max count of files in one subderictory of `$dir` directory.
