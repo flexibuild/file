@@ -63,7 +63,18 @@ abstract class AbstractFormatter extends Formatter
         $this->restoreImagine();
 
         if ($result instanceof ManipulatorInterface) {
-            $tempFile = FileSystemHelper::getNewTempFilename(FileSystemHelper::extension($readFilePath));
+            $winFSCharset = $this->context->winFSCharset;
+            $decodedReadFilePath = FileSystemHelper::decodeFilename($readFilePath, $winFSCharset);
+
+            if ($decodedReadFilePath === false) {
+                $extension = null;
+            } else {
+                $extension = FileSystemHelper::extension($decodedReadFilePath);
+                $extension = FileSystemHelper::encodeFilename($extension, $winFSCharset);
+                $extension = $extension === false ? null : $extension;
+            }
+            $tempFile = FileSystemHelper::getNewTempFilename($extension);
+
             try {
                 $result->save($tempFile);
             } catch (\Exception $ex) {

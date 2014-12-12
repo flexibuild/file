@@ -2,10 +2,6 @@
 
 namespace flexibuild\file\helpers;
 
-if (YII_DEBUG && \Yii::getAlias('@yii/imagine', false) /* === false*/) {
-    throw new \yii\base\Exception('You must install yiisoft/yii2-imagine extension for using ' . __NAMESPACE__ . '\ImageHelper.');
-}
-
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
@@ -302,7 +298,7 @@ class BaseImageHelper extends BaseImage
      * @return ImageInterface
      * @throws InvalidParamException if `$start` is invalid
      */
-    public static function watermark($filename, $watermarkFilename, $start = [self::WATERMARK_CENTER, self::WATERMARK_MIDDLE])
+    public static function watermark($filename, $watermarkFilename, array $start = [self::WATERMARK_CENTER, self::WATERMARK_MIDDLE])
     {
         if (!isset($start[0], $start[1])) {
             throw new InvalidParamException('$start must be an array of two elements.');

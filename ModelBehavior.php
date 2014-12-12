@@ -2,6 +2,7 @@
 
 namespace flexibuild\file;
 
+use Yii;
 use yii\base\Behavior;
 use yii\base\Event;
 use yii\base\Model;
@@ -24,17 +25,29 @@ use flexibuild\file\events\DataChangedEvent;
  * ```
  *
  * @author SeynovAM <sejnovalexey@gmail.com>
+ * 
+ * @property Context[] $attributes file data attributes that used in the model with them contexts.
+ * You can set contexts names without it objects, for example:
+ * ```php
+ *  'attributes' => [
+ *      'avatar' => 'user', // means use Yii::$app->contextManager->getContext('user'),
+ *      'image' => Yii::$app->contextManager->getContext('product'),
+ *  ],
+ * ```
  */
 class ModelBehavior extends Behavior
 {
     /**
-     * File attributes that used in the model with them contexts.
-     * 
-     * For example !!!
-     * 
-     * @var Context[] array in attribute name => Context format.
+     * File data attributes that used in the model with them contexts.
+     * @var Context[] array in attribute name => Context (or context name) format.
      */
-    public $attributes = [];
+    private $_attributes = [];
+
+    /**
+     * @var string the name of contexts manager application component.
+     * It will be used if any context name will be passed in `$attributes` property.
+     */
+    public $manager = 'contextManager';
 
     /**
      * By default the behavior fills file attributes as source attributes
@@ -49,8 +62,8 @@ class ModelBehavior extends Behavior
      * ```
      *  [
      *      'attributes' => [
-     *          'image_data' => Yii::!!!,
-     *          'pdf' => Yii::!!!,
+     *          'image_data' => 'user',
+     *          'pdf' => 'document',
      *      ],
      *      'fileAttributesMap' => [
      *          'avatarFile' => 'image_data',
@@ -279,7 +292,7 @@ class ModelBehavior extends Behavior
     protected function initFileAttributesMap()
     {
         $flippedMap = array_flip($this->fileAttributesMap); // keys - unique data attributes
-        foreach ($this->attributes as $dataAttribute => $context) {
+        foreach (array_keys($this->_attributes) as $dataAttribute) {
             if (isset($flippedMap[$dataAttribute])) {
                 continue;
             }
@@ -305,7 +318,7 @@ class ModelBehavior extends Behavior
     public function hasFileAttribute($name)
     {
         return isset($this->fileAttributesMap[$name]) &&
-            isset($this->attributes[$this->fileAttributesMap[$name]]);
+            isset($this->_attributes[$this->fileAttributesMap[$name]]);
     }
 
     /**
@@ -318,6 +331,53 @@ class ModelBehavior extends Behavior
     }
 
     /**
+     * Returns attributes config in data attribute name => Context object.
+     * @return Context[] file data attributes that used in the model with them contexts.
+     */
+    public function getAttributes()
+    {
+        foreach ($this->_attributes as $dataAttribute => $context) {
+            $this->_attributes[$dataAttribute] = $this->fetchAttributeContext($context);
+        }
+        return $this->_attributes;
+    }
+
+    /**
+     * Sets attributes config in data attribute name => Context object.
+     * @param array $attributes file data attributes that used in the model with them contexts.
+     * You can set contexts names without it objects, for example:
+     * ```php
+     *  'attributes' => [
+     *      'avatar' => 'user', // means use Yii::$app->contextManager->getContext('user'),
+     *      'image' => Yii::$app->contextManager->getContext('product'),
+     *  ],
+     * ```
+     * @throws InvalidConfigException if $attributes has invalid format.
+     */
+    public function setAttributes($attributes)
+    {
+        if (!is_array($attributes)) {
+            throw new InvalidConfigException('Param $attributes must be an array.');
+        }
+        $this->_attributes = $attributes;
+    }
+
+    /**
+     * Checks if `$context` is not an instance of [[Context]] than gets it by name from context manager.
+     * @param string|Context $context context object or it name.
+     * @return Context the context object.
+     */
+    protected function fetchAttributeContext($context)
+    {
+        if (!$context instanceof Context) {
+            $contextManager = Yii::$app->get($this->manager);
+            /* @var $contextManager ContextManager */
+            $context = $contextManager->getContext($context);
+        }
+        return $context;
+    }
+
+    /**
      * Returns context for the file attribute.
      * @param string $name name of file property.
      * @return Context context for current file attribute.
@@ -326,7 +386,9 @@ class ModelBehavior extends Behavior
     public function getFileContext($name)
     {
         $dataAttribute = $this->getFileDataAttribute($name);
-        return $this->attributes[$dataAttribute];
+        $context = $this->_attributes[$dataAttribute];
+        $this->_attributes[$dataAttribute] = $context = $this->fetchAttributeContext($context);
+        return $context;
     }
 
     /**
@@ -436,7 +498,7 @@ class ModelBehavior extends Behavior
      */
     protected function saveOldDataAttributes()
     {
-        foreach ($this->attributes as $dataAttribute => $context) {
+        foreach (array_keys($this->_attributes) as $dataAttribute) {
             $this->_oldFilesDatas[$dataAttribute] = $this->owner->{$dataAttribute};
         }
     }
@@ -515,8 +577,8 @@ class ModelBehavior extends Behavior
         $result = [];
         $contexts->rewind();
         while ($contexts->valid()) {
-            $context = $contexts->key();
-            $fileAttributes = $contexts->current();
+            $context = $contexts->current();
+            $fileAttributes = $contexts->getInfo();
 
             foreach ($context->getValidators() as $validator) {
                 $validator = Validator::createValidator($validator[0], $owner, $fileAttributes, array_slice($validator, 1, null, true));

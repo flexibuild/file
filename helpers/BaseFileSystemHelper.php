@@ -217,10 +217,16 @@ class BaseFileSystemHelper extends BaseFileHelper
             if (isset($result) && strpos($result, '%') !== false && defined('D_T_FMT') && $result === nl_langinfo(D_T_FMT)) {
                 $result = null;
             }
-        }
-
-        if (empty($result)) {
-            $result = @setlocale(LC_CTYPE, '0');
+        } else {
+            $result = setlocale(LC_CTYPE, '0');
+            if ($result === 'C' || $result === 'c') {
+                $newResult = setlocale(LC_CTYPE, '');
+                setlocale(LC_CTYPE, $result);
+                $result = $newResult;
+                if ($result === 'C' || $result === 'c') {
+                    $result = null;
+                }
+            }
             if (preg_match('/\.(.*)$/', $result, $matches)) {
                 $result = $matches[1];
             }
@@ -562,7 +568,7 @@ class BaseFileSystemHelper extends BaseFileHelper
 
         while ($fileName === false) {
             $fileName = Yii::$app->getSecurity()->generateRandomString(16) . 
-                ($extension === null ? ".$extension" : '');
+                ($extension === null ? '' : ".$extension");
             if (static::fileExists($dir, $fileName, null, false)) {
                 $fileName = false;
             }

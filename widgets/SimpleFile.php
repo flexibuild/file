@@ -13,6 +13,8 @@ use flexibuild\file\File;
  */
 class SimpleFile extends InputWidget
 {
+    use FormEnctypeTrait;
+
     /**
      * @var string the name of format link which must be rendered when file has been already uploaded.
      * Null (default) meaning link to the source file will be rendered.
@@ -51,7 +53,7 @@ class SimpleFile extends InputWidget
             throw new InvalidConfigException('Params $model and $attribute are required for '.get_class($this).'.');
         }
 
-        $model = $this->hasModel();
+        $model = $this->model;
         $file = $model->{$this->attribute};
         if (!$file instanceof File) {
             throw new InvalidConfigException("Attribute $this->attribute of ".get_class($model).' must be an instance of '.File::className().' for usage in '.get_class($this).'.');
@@ -79,13 +81,19 @@ class SimpleFile extends InputWidget
 
         $name = isset($this->options['name']) ? $this->options['name'] : Html::getInputName($this->model, $this->attribute);
         $this->options['name'] = $name;
-        $this->options['value'] = $context->postParamUploadPrefix . $name;
+        $this->options['value'] = false;
 
         $input = Html::activeHiddenInput($this->model, $this->attribute, [
             'name' => $name,
-            'value' => $context->postParamStoragePrefix . $file->getData(),
+            'value' => $context->postParamUploadPrefix . $name .
+                $context->postParamStoragePrefix . $file->getData(),
         ]);
+
+        if (!isset($this->options['id'])) {
+            $this->options['id'] = Html::getInputId($this->model, $this->attribute);
+        }
         $input .= Html::activeInput('file', $this->model, $this->attribute, $this->options);
+        $this->registerChangeEnctypeScripts($this->options['id']);
 
         if ($link === null && $this->emptyFileTemplate !== null) {
             echo strtr($this->emptyFileTemplate, [

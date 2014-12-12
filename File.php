@@ -4,7 +4,6 @@ namespace flexibuild\file;
 
 use Yii;
 use yii\base\InvalidConfigException;
-use yii\base\InvalidConfigException;
 use yii\base\InvalidCallException;
 use yii\base\InvalidParamException;
 use yii\web\UploadedFile;
@@ -300,12 +299,12 @@ class File extends FileComponent
      * @inheritdoc
      * @throws InvalidCallException when trying to unset `as{Format}` property.
      */
-    public function __unset($name, $value)
+    public function __unset($name)
     {
         if (!parent::canSetProperty($name) && $this->_parseFormatAlias($name) !== false) {
             throw new InvalidCallException('Unsetting read-only property: ' . get_class($this) . "::$name.");
         }
-        parent::__unset($name, $value);
+        parent::__unset($name);
     }
 
     /**
@@ -610,19 +609,17 @@ class File extends FileComponent
             }
         }
 
-        if ($this->hasEventHandlers(self::EVENT_CANNOT_GET_URL)) {
-            $event = new CannotGetUrlEvent();
-            $event->sender = $this;
-            $event->case = $case;
-            $event->format = $format;
-            $event->scheme = $scheme;
-            $event->exception = isset($exception) ? $exception : null;
+        $event = new CannotGetUrlEvent();
+        $event->sender = $this;
+        $event->case = $case;
+        $event->format = $format;
+        $event->scheme = $scheme;
+        $event->exception = isset($exception) ? $exception : null;
 
-            $this->trigger(self::EVENT_CANNOT_GET_URL, $event);
+        $this->trigger(self::EVENT_CANNOT_GET_URL, $event);
 
-            if ($event->url !== null) {
-                return $event->url;
-            }
+        if ($event->handled) {
+            return $event->url;
         }
         CannotGetUrlHandlers::throwException($event);
     }

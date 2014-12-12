@@ -5,6 +5,7 @@ namespace flexibuild\file\contexts;
 use Yii;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
+use yii\helpers\StringHelper;
 use yii\web\UploadedFile;
 
 use flexibuild\file\File;
@@ -49,7 +50,7 @@ use flexibuild\file\formatters\FormatterInterface;
  * 
  * @author SeynovAM <sejnovalexey@gmail.com>
  */
-class Context extends Component implements ContextInterface
+class Context extends Component
 {
     use ContextFormattersTrait;
     use ContextValidatorsTrait;
@@ -106,6 +107,23 @@ class Context extends Component implements ContextInterface
      * - array of formats names, only these formats will be generated.
      */
     public $generateFormatsAfterSave = true;
+
+    // !!! add manager property
+    // !!! may be winFSCharset must be in manager
+    /**
+     * Used only for windows platforms.
+     * Filenames will be converted in this charset by `iconv()` method before using in file methods.
+     * 
+     * @see [[\flexibuild\file\helpers\FileSystemHelper::getFileSystemCharset()]]
+     * 
+     * @var mixed string|null|false charset for using in `iconv` method, may be on of the followings:
+     * 
+     * - null, file systems helper will try to detect file system charset,
+     * - false, filename will not be converted,
+     * - string, this charset will be used.
+     * 
+     */
+    public $winFSCharset = null;
 
     /**
      * @var mixed
@@ -202,14 +220,33 @@ class Context extends Component implements ContextInterface
         if ($value === '') {
             return null;
         }
+
         if (StringHelper::startsWith($value, $this->postParamUploadPrefix)) {
-            $formName = StringHelper::byteSubstr($value, StringHelper::byteLength($this->postParamUploadPrefix));
-            return UploadedFile::getInstanceByName($formName) ?: null;
-        } elseif (StringHelper::startsWith($value, $this->postParamStoragePrefix)) {
-            $storageFileData = StringHelper::byteSubstr($value, StringHelper::byteLength($this->postParamStoragePrefix));
-            if ($this->getStorage()->fileExists($storageFileData)) {
-                return $storageFileData;
+            $charset = Yii::$app->charset;
+            $storagePrefixPos = mb_strpos($value, $this->postParamStoragePrefix, 0, $charset);
+            $uploadPrefixLength = mb_strlen($this->postParamUploadPrefix, $charset);
+            $valueLength = mb_strlen($value, $charset);
+            $length = $storagePrefixPos === false
+                ? $valueLength - $uploadPrefixLength
+                : $storagePrefixPos - $uploadPrefixLength;
+
+            $formName = mb_substr($value, $uploadPrefixLength, $length, $charset);
+            if ($result = UploadedFile::getInstanceByName($formName)) {
+                return $result;
             }
+
+            if ($storagePrefixPos !== false) {
+                $storagePrefixLength = mb_strlen($this->postParamStoragePrefix, $charset);
+                $pos = $storagePrefixPos + $storagePrefixLength;
+                $storageFileData = mb_substr($value, $pos, $valueLength - $pos, $charset);
+            }
+        }
+
+        if (!isset($storageFileData) && StringHelper::startsWith($value, $this->postParamStoragePrefix)) {
+            $storageFileData = StringHelper::byteSubstr($value, StringHelper::byteLength($this->postParamStoragePrefix));
+        }
+        if (isset($storageFileData) && $this->getStorage()->fileExists($storageFileData)) {
+            return $storageFileData;
         }
         return null;
     }

@@ -108,25 +108,12 @@ class FileSystemStorage extends Storage
     public $maxLength = 255;
 
     /**
-     * Used only for `$saveOriginNames` == true and only for windows platforms.
-     * Origin filename will be converted in this charset by `iconv()` method.
-     * 
-     * Null meaning storage will try detect filesystem charset.
-     * @see [[\flexibuild\file\helpers\FileSystemHelper::getFileSystemCharset()]]
-     * 
-     * False meaning storage will not convert filename.
-     * 
-     * @var mixed string|null|false
-     */
-    public $winFSCharset = null;
-
-    /**
      * @inheritdoc
      */
     public function saveFile($content, $originFilename = null)
     {
         $filename = $this->createNewFilename($originFilename);
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
         $rootDir = $this->getRootDirectory();
         $folder = $this->getFileFolder($filename);
 
@@ -146,7 +133,7 @@ class FileSystemStorage extends Storage
     public function saveFileByCopying($sourceFilePath, $originFilename = null)
     {
         $filename = $this->createNewFilename($originFilename);
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
         $rootDir = $this->getRootDirectory();
         $folder = $this->getFileFolder($filename);
 
@@ -212,7 +199,7 @@ class FileSystemStorage extends Storage
         if (!FileSystemHelper::createDirectory($formatDir, $this->makeDirMode, false)) {
             throw new InvalidConfigException("Cannot create directory: $formatDir");
         }
-        return "$formatDir/" . FileSystemHelper::encodeFilename($basename, $this->winFSCharset);
+        return "$formatDir/" . FileSystemHelper::encodeFilename($basename, $this->context->winFSCharset);
     }
 
     /**
@@ -228,16 +215,16 @@ class FileSystemStorage extends Storage
         }
 
         $rootDirectory = $this->getRootDirectory();
-        $fsSourceFilename = FileSystemHelper::encodeFilename($fileParts[1], $this->winFSCharset);
+        $fsSourceFilename = FileSystemHelper::encodeFilename($fileParts[1], $this->context->winFSCharset);
 
         switch (true) {
             case !preg_match('/^[a-z0-9\-\_]+$/i', $fileParts[0]); // no break
             case in_array($fsSourceFilename, ['', '.', '..'], true); // no break
             case $this->containsSpecialChar($fsSourceFilename); // no  break
-            case !is_dir($rootDirectory/$fileParts[0]); // no break
+            case !is_dir("$rootDirectory/$fileParts[0]"); // no break
             case !FileSystemHelper::fileExists($rootDirectory, $fileParts[0], true, false); // no break
             case !is_file("$rootDirectory/$fileParts[0]/$fsSourceFilename"); // no break
-            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $fsSourceFilename, true, $this->winFSCharset); // no break
+            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $fsSourceFilename, true, $this->context->winFSCharset); // no break
                 return false;
 
             case $format === null:
@@ -248,7 +235,7 @@ class FileSystemStorage extends Storage
             case !is_dir("$rootDirectory/$fileParts[0]/$format"); // no break
             case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $format, true, false); // no break
             case !is_file("$rootDirectory/$fileParts[0]/$format/$fsSourceFilename"); // no break
-            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]/$format", $fsSourceFilename, true, $this->winFSCharset); // no break
+            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]/$format", $fsSourceFilename, true, $this->context->winFSCharset); // no break
                 return false;
         }
 
@@ -282,7 +269,7 @@ class FileSystemStorage extends Storage
 
         list($folder, $filename) = explode('/', $data);
         $rootDirectory = $this->getRootDirectory();
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
 
         if ($format === null) {
             return "$rootDirectory/$folder/$fsFilename";
@@ -304,10 +291,10 @@ class FileSystemStorage extends Storage
             'recursive' => false,
         ]);
 
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
         $result = [];
         foreach ($formatDirs as $formatDir) {
-            if (is_file("$formatDir/$fsFilename") && FileSystemHelper::fileExists($formatDir, $fsFilename, true, $this->winFSCharset)) {
+            if (is_file("$formatDir/$fsFilename") && FileSystemHelper::fileExists($formatDir, $fsFilename, true, $this->context->winFSCharset)) {
                 $result[] = FileSystemHelper::basename($formatDir);
             }
         }
@@ -333,7 +320,7 @@ class FileSystemStorage extends Storage
             $folder = FileSystemHelper::basename($fileDir);
 
             foreach ($files as $fsFile) {
-                $file = FileSystemHelper::decodeFilename($fsFile, $this->winFSCharset);
+                $file = FileSystemHelper::decodeFilename($fsFile, $this->context->winFSCharset);
                 if ($file !== false) {
                     $result[] = "$folder/" . FileSystemHelper::basename($file);
                 }
@@ -361,7 +348,7 @@ class FileSystemStorage extends Storage
 
         list($folder, $filename) = explode('/', $data);
         $rootDirectory = $this->getRootDirectory();
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
 
         if (!@unlink("$rootDirectory/$folder/$fsFilename")) {
             $result = false;
@@ -383,7 +370,7 @@ class FileSystemStorage extends Storage
 
         list($folder, $filename) = explode('/', $data);
         $rootDirectory = $this->getRootDirectory();
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
 
         if ($result = @unlink("$rootDirectory/$folder/$format/$fsFilename")) {
             if (FileSystemHelper::isEmptyDirectory("$rootDirectory/$folder/$format")) {
@@ -468,10 +455,11 @@ class FileSystemStorage extends Storage
             shuffle($rootDirChilds);
         }
 
-        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+        $fsFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
+        $dir = false;
         foreach ($rootDirChilds as $dir) {
             switch (true) {
-                case FileSystemHelper::fileExists("$rootDirectory/$dir", $fsFilename, false, $this->winFSCharset); // no break
+                case FileSystemHelper::fileExists("$rootDirectory/$dir", $fsFilename, false, $this->context->winFSCharset); // no break
                 case FileSystemHelper::directoryFilesCount("$rootDirectory/$dir") > $this->maxSubdirFilesCount:
                     $dir = false;
                     break;
@@ -505,14 +493,14 @@ class FileSystemStorage extends Storage
     {
         if ($originFilename !== null) {
             $extension = FileSystemHelper::extension($originFilename);
-            $extension = FileSystemHelper::normalizeFilename($extension, $this->winFSCharset);
+            $extension = FileSystemHelper::normalizeFilename($extension, $this->context->winFSCharset);
             if (!$this->isValidExtension($extension)) {
                 $extension = null;
             }
 
             if ($this->saveOriginNames) {
                 $filename = FileSystemHelper::filename($originFilename);
-                $filename = FileSystemHelper::normalizeFilename($filename, $this->winFSCharset);
+                $filename = FileSystemHelper::normalizeFilename($filename, $this->context->winFSCharset);
                 if (!$this->isValidFileName($filename)) {
                     $filename = null;
                 }
@@ -567,7 +555,7 @@ class FileSystemStorage extends Storage
         }
 
         if ($validateEncoded) {
-            $encodedFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
+            $encodedFilename = FileSystemHelper::encodeFilename($filename, $this->context->winFSCharset);
             return $this->isValidFileName($encodedFilename, false);
         }
 
@@ -602,7 +590,7 @@ class FileSystemStorage extends Storage
         }
 
         if ($validateEncoded) {
-            $encodedExtension = FileSystemHelper::encodeFilename($extension, $this->winFSCharset);
+            $encodedExtension = FileSystemHelper::encodeFilename($extension, $this->context->winFSCharset);
             return $this->isValidExtension($encodedExtension, false);
         }
 

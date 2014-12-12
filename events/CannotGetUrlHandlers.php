@@ -31,7 +31,7 @@ class CannotGetUrlHandlers
 
         switch ($case) {
             case CannotGetUrlEvent::CASE_EMPTY_FILE:
-                throw new Exception("Cannot get url for empty file.");
+                throw new Exception('Cannot get url for empty file.');
             case CannotGetUrlEvent::CASE_FILE_JUST_UPLOADED:
                 throw new Exception("Cannot get url for file '$file->name', the file was just uploaded.");
             case CannotGetUrlEvent::CASE_FILE_NOT_FOUND:
