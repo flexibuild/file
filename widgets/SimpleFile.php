@@ -14,13 +14,13 @@ use flexibuild\file\File;
 class SimpleFile extends InputWidget
 {
     /**
-     * @var string the name of format link on which must be rendered when file has been already uploaded.
-     * Null meaning link to the source file will be rendered.
+     * @var string the name of format link which must be rendered when file has been already uploaded.
+     * Null (default) meaning link to the source file will be rendered.
      */
     public $linkFormat = null;
 
     /**
-     * @var array html options of link.
+     * @var array html options of link. One target '_blank' property by default.
      */
     public $linkOptions = [
         'target' => '_blank',
