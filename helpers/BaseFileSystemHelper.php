@@ -20,7 +20,7 @@ class BaseFileSystemHelper extends BaseFileHelper
      * You can use Yii aliases.
      * Null meaning `sys_get_temp_dir()` will be used.
      */
-    static $tempDir = '@flexibuild/temp';
+    static $tempDir = '@runtime/flexibuild/temp';
 
     /**
      * Method works like php `basename` function. Rewrited because php's basename
@@ -370,14 +370,8 @@ class BaseFileSystemHelper extends BaseFileHelper
         }
 
         if ($cutSpecialModes) {
-            if (strcasecmp(substr($winFSCharset, -10), '//TRANSLIT') === 0) {
-                $winFSCharset = substr($winFSCharset, 0, -10);
-            }
-            if (strcasecmp(substr($winFSCharset, -8), '//IGNORE') === 0) {
-                $winFSCharset = substr($winFSCharset, 0, -8);
-            }
+            return str_ireplace(['//TRANSLIT', '//IGNORE'], ['', ''], $winFSCharset);
         }
-
         return $winFSCharset;
     }
 
@@ -569,7 +563,7 @@ class BaseFileSystemHelper extends BaseFileHelper
         while ($fileName === false) {
             $fileName = Yii::$app->getSecurity()->generateRandomString(16) . 
                 ($extension === null ? ".$extension" : '');
-            if (file_exists($fileName)) {
+            if (static::fileExists($dir, $fileName, null, false)) {
                 $fileName = false;
             }
         }

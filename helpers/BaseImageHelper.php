@@ -114,11 +114,11 @@ class BaseImageHelper extends BaseImage
         } elseif (self::$_imagine instanceof ImagineInterface) {
             return self::$_imagine;
         } elseif (self::$_imagine === self::DRIVER_GD2) {
-            return new \Imagine\Gd\Imagine();
+            return self::$_imagine = new \Imagine\Gd\Imagine();
         } elseif (self::$_imagine === self::DRIVER_GMAGICK) {
-            return new \Imagine\Gmagick\Imagine();
+            return self::$_imagine = new \Imagine\Gmagick\Imagine();
         } elseif (self::$_imagine === self::DRIVER_IMAGICK) {
-            return new \Imagine\Imagick\Imagine();
+            return self::$_imagine = new \Imagine\Imagick\Imagine();
         }
 
         self::$_imagine = Yii::createObject(self::$_imagine);
@@ -188,9 +188,11 @@ class BaseImageHelper extends BaseImage
         if ($width === null) {
             $imgSize = $img->getSize();
             $box = $imgSize->heighten($height);
+            $width = $box->getWidth();
         } elseif ($height === null) {
             $imgSize = $img->getSize();
             $box = $imgSize->widen($width);
+            $height = $box->getHeight();
         } else {
             $box = new Box($width, $height);
         }
@@ -211,7 +213,7 @@ class BaseImageHelper extends BaseImage
             $thumb = static::getImagine()->create($box, new Color('FFF', 100));
 
             // calculate points
-            $size = $imgSize;
+            $size = $img->getSize();
 
             $startX = 0;
             $startY = 0;

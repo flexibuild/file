@@ -108,7 +108,7 @@ trait ContextValidatorsTrait
         }
 
         foreach ($this->getValidators() as $validatorCfg) {
-            $validator = Validator::createValidator($validatorCfg[0], $model, $attributeNames, array_slice($validatorCfg, 1));
+            $validator = Validator::createValidator($validatorCfg[0], $model, $attributeNames, array_slice($validatorCfg, 1, null, true));
             $validator->validateAttributes($model, $attributeNames);
         }
 

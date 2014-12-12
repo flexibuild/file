@@ -14,7 +14,6 @@ use yii\base\Exception;
 use yii\web\UploadedFile;
 
 use flexibuild\file\File;
-use flexibuild\file\FileHandler;
 use flexibuild\file\events\FileEvent;
 use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\StorageInterface;
@@ -83,14 +82,16 @@ class Context extends Component implements ContextInterface
     //!!! check name chars in ContextsManager
 
     /**
-     *!!!
-     * @var string
+     * Class name that will be used for creating file.
+     * @see [[self::createFile()]]
+     * @var string the class name for creating file object.
      */
     public $fileClass = 'flexibuild\file\File';
 
     /**
-     *!!!
-     * @var array
+     * Additional params that will be used for creating file.
+     * @see [[self::createFile()]]
+     * @var array array of additional params that will be used for creating file in key => value format.
      */
     public $fileConfig = [];
 
@@ -180,16 +181,20 @@ class Context extends Component implements ContextInterface
     }
 
     /**
-     * !!!
-     * Parses input POST param value.
-     * @param mixed $value
+     * Parses input POST param value. The method keeps main logic of parsing POST data.
+     * 
+     * @param mixed $value the value must be on of the followings:
+     * 
+     * - an instance of File, than file data will be returned if the file exists,
+     * - an instance of Uploaded file, than it object will be returned,
+     * - a string, that starts with [[self::$postParamUploadPrefix]], than appropriate UploadedFile instance will be returned,
+     * - a string, that starts with [[self::$postParamStoragePrefix]], than appropriate file data from storage will be returned,
+     * - other value, null will be returned.
+     * 
      * @return UploadedFile|string|null
      */
     public function parseInputValue($value)
     {
-        if ($value instanceof FileHandler) {
-            $value = $value->file;
-        }
         if ($value instanceof UploadedFile) {
             if ($value instanceof File && $value->status !== File::STATUS_UPLOADED_FILE) {
                 return $value->exists() ? $value->getData() : null;
@@ -200,9 +205,10 @@ class Context extends Component implements ContextInterface
     }
 
     /**
-     * !!!
+     * The method internally called in [[self::parseInputValue()]] and parse only string typed value.
+     * @see [[self::parseInputValue()]]
      * @param string $value
-     * @return UploadedFile|string|null
+     * @return string|null
      */
     protected function parseInputStringValue($value)
     {
@@ -222,10 +228,10 @@ class Context extends Component implements ContextInterface
     }
 
     /**
-     * !!!
-     * @param array $params
-     * @return File
-     * @throws InvalidConfigException
+     * Creates instance of File object. The method use [[$fileClass]] and [[$fileConfig]] properties for that.
+     * @param array $params array of additional params that may override [[$fileClass]] and [[$fileConfig]] params.
+     * @return File created File object.
+     * @throws InvalidConfigException if file has incorrect format.
      */
     public function createFile($params = [])
     {
@@ -287,7 +293,7 @@ class Context extends Component implements ContextInterface
         if (is_array($this->generateFormatsAfterSave)) {
             $data = $this->generateFormats($data, $this->generateFormatsAfterSave);
         } elseif ($this->generateFormatsAfterSave) {
-            $data = $this->generateAllFormats($data);
+            $data = $this->generateFormats($data);
         }
 
         if ($data === false || !$this->hasEventHandlers(self::EVENT_AFTER_SAVE)) {
@@ -315,7 +321,14 @@ class Context extends Component implements ContextInterface
      */
     public function saveFile($sourceFilePath, $originFilename = null)
     {
+        $unlinkHandler = function ($filePath, $needUnlink) {
+            if ($needUnlink && !@unlink($filePath)) {
+                Yii::warning("Cannot unlink file: $filePath", __METHOD__);
+            }
+        };
+
         if (!$this->beforeSaveFile($sourceFilePath, $originFilename, $unlinkAfterSave)) {
+            $unlinkHandler($sourceFilePath, $unlinkAfterSave);
             return false;
         }
 
@@ -332,13 +345,12 @@ class Context extends Component implements ContextInterface
         }
 
         if ($data === false) {
+            $unlinkHandler($sourceFilePath, $unlinkAfterSave);
             return false;
         }
         $this->afterSaveFile($data, $sourceFilePath, $originFilename);
 
-        if ($unlinkAfterSave && $data !== false && !@unlink($sourceFilePath)) {
-            Yii::warning("Cannot unlink file: $sourceFilePath", __METHOD__);
-        }
+        $unlinkHandler($sourceFilePath, $unlinkAfterSave);
         return $data;
     }
 }

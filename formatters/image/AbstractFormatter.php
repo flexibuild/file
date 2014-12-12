@@ -67,7 +67,7 @@ abstract class AbstractFormatter extends Formatter
             try {
                 $result->save($tempFile);
             } catch (\Exception $ex) {
-                throw new Exception("Cannot save temp file: $tempFile", $ex->getCode(), $ex);
+                throw new Exception("Cannot save temp file: $tempFile. " . $ex->getMessage(), $ex->getCode(), $ex);
             }
             $result = $tempFile;
         }

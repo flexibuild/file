@@ -2,13 +2,8 @@
 
 namespace flexibuild\file\events;
 
-use flexibuild\file\File;
-use flexibuild\file\FileHandler;
-use flexibuild\file\ModelBehavior;
-use flexibuild\file\contexts\Context;
-
 /**
- * This event class used for events triggerred by FileHandler object when it's [[File]] object unsuccessfully trying to get url.
+ * This event class used for events triggerred by File object when it unsuccessfully trying to get url.
  * @see [[File::getUrl()]] method.
  *
  * @author SeynovAM <sejnovalexey@gmail.com>

@@ -6,7 +6,6 @@ use yii\base\Exception;
 use yii\db\BaseActiveRecord;
 
 use flexibuild\file\File;
-use flexibuild\file\FileHandler;
 use flexibuild\file\ModelBehavior;
 
 /**
@@ -26,7 +25,7 @@ class CannotGetUrlHandlers
     public static function throwException($event)
     {
         $case = $event->case;
-        $file = $event->file;
+        $file = $event->sender;
         $format = $event->format;
         $exception = $event->exception;
 
@@ -50,10 +49,10 @@ class CannotGetUrlHandlers
      * Handler for [[CannotGetUrlEvent]], this handler will generate formatted version of file on the fly.
      * This handler is used for `$event->case` === [[CannotGetUrlEvent::CASE_FORMAT_NOT_FOUND]] only.
      * 
-     * Note! This handler does not save changes of your model file attribute in database. You have the next choices:
-     * - do not use this handler
+     * Note! This handler does not save changes of your model file attribute in database.
+     * If it is problem for you, you have the next choices:
      * - use [[formatFileOnFlyWithSaving]] handler
-     * - use storages which does not change file data while saves formatted version of the source.
+     * - use storages which does not change file data while saves formatted version of the source (like [[\flexibuild\file\storage\FileSystemStorage]]).
      * 
      * @param CannotGetUrlEvent $event
      */
@@ -64,9 +63,9 @@ class CannotGetUrlHandlers
         }
 
         try {
-            $file = $event->file;
+            $file = $event->sender;
             $file->generateFormat($event->format);
-            $url = $file->context->getStorage()->getUrl($file->getData(), $event->format, $event->scheme);
+            $url = $file->getUrl($event->format, $event->scheme);
         } catch (\Exception $ex) {
             $event->case = CannotGetUrlEvent::CASE_EXCEPTION_THROWED;
             $event->exception = $ex;
@@ -94,7 +93,7 @@ class CannotGetUrlHandlers
             return;
         }
 
-        $file = $event->file;
+        $file = $event->sender;
 
         // determines whether owner record must be saved or not
         switch (true) {
@@ -114,15 +113,14 @@ class CannotGetUrlHandlers
             $record->update(false, [$dataAttribute]);
         };
 
-        $fileHandler = $file->handler;
-        $fileHandler->on(FileHandler::EVENT_DATA_CHANGED, $saveHandler);
+        $file->on(File::EVENT_DATA_CHANGED, $saveHandler);
         try {
             static::formatFileOnFly($event);
         } catch (\Exception $ex) {
-            $fileHandler->off(FileHandler::EVENT_DATA_CHANGED, $saveHandler);
+            $file->off(File::EVENT_DATA_CHANGED, $saveHandler);
             throw $ex;
         }
-        $fileHandler->off(FileHandler::EVENT_DATA_CHANGED, $saveHandler);
+        $file->off(File::EVENT_DATA_CHANGED, $saveHandler);
     }
 
     /**
@@ -133,7 +131,7 @@ class CannotGetUrlHandlers
      */
     public static function returnDefaultUrl($event)
     {
-        $url = $event->file->getDefaultUrl($event->format, $event->scheme);
+        $url = $event->sender->getDefaultUrl($event->format, $event->scheme);
         if ($url !== null) {
             $event->url = $url;
             $event->handled = true;
@@ -141,7 +139,7 @@ class CannotGetUrlHandlers
     }
 
     /**
-     * Handler for [[CannotGetUrlEvent]], this handler will return url of source (non-foormatted) file.
+     * Handler for [[CannotGetUrlEvent]], this handler will return url of source (non-formatted) file.
      * This handler works only for [[CannotGetUrlEvent::CASE_FORMAT_NOT_FOUND]] case.
      * @param CannotGetUrlEvent $event
      */
@@ -152,7 +150,7 @@ class CannotGetUrlHandlers
         }
 
         try {
-            $url = $event->file->getUrl(null, $event->scheme);
+            $url = $event->sender->getUrl(null, $event->scheme);
             if ($url !== null) {
                 $event->url = $url;
                 $event->handled = true;

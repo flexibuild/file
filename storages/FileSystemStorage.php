@@ -171,6 +171,9 @@ class FileSystemStorage extends Storage
             Yii::warning("Cannot save formatted as '$formatName' version of file '$data' in '{$this->context->name}' context.");
             return false;
         }
+        if (!@chmod($fsFormatPath, $this->createFileMode)) {
+            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $fsFormatPath", __METHOD__);
+        }
         return $data;
     }
 
@@ -183,6 +186,9 @@ class FileSystemStorage extends Storage
         if (!@copy($sourceFilePath, $fsFormatPath)) {
             Yii::warning("Cannot copy formatted as '$formatName' version of file ($sourceFilePath) for '$data' file in '{$this->context->name}' context.");
             return false;
+        }
+        if (!@chmod($fsFormatPath, $this->createFileMode)) {
+            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $fsFormatPath", __METHOD__);
         }
         return $data;
     }
@@ -204,7 +210,7 @@ class FileSystemStorage extends Storage
         $dirname = $this->getRootDirectory() . "/$folder";
         $formatDir = "$dirname/$formatName";
 
-        if (!FileSystemHelper::createDirectory($formatDir, $this->makeDirMode)) {
+        if (!FileSystemHelper::createDirectory($formatDir, $this->makeDirMode, false)) {
             throw new InvalidConfigException("Cannot create directory: $formatDir");
         }
         return "$formatDir/" . FileSystemHelper::encodeFilename($basename, $this->winFSCharset);
@@ -240,7 +246,7 @@ class FileSystemStorage extends Storage
 
             case !is_scalar($format); // no break
             case !preg_match('/^[0-9a-z\_]+$/i', $format); // no break
-            case !is_dir("$rootDirectory/$fileParts[0]"); // no break
+            case !is_dir("$rootDirectory/$fileParts[0]/$format"); // no break
             case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $format, true, false); // no break
             case !is_file("$rootDirectory/$fileParts[0]/$format/$fsSourceFilename"); // no break
             case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]/$format", $fsSourceFilename, true, $this->winFSCharset); // no break
@@ -329,7 +335,9 @@ class FileSystemStorage extends Storage
 
             foreach ($files as $fsFile) {
                 $file = FileSystemHelper::decodeFilename($fsFile, $this->winFSCharset);
-                $result[] = "$folder/" . FileSystemHelper::basename($file);
+                if ($file !== false) {
+                    $result[] = "$folder/" . FileSystemHelper::basename($file);
+                }
             }
         }
 
@@ -454,8 +462,8 @@ class FileSystemStorage extends Storage
         if (false === $rootDirChilds = @scandir($rootDirectory, SCANDIR_SORT_NONE)) {
             throw new InvalidConfigException("Unable to scan directory: $rootDirectory");
         }
-        $rootDirChilds = array_filter($rootDirChilds, function ($dir) {
-            return $dir !== '.' && $dir !== '..';
+        $rootDirChilds = array_filter($rootDirChilds, function ($dir) use ($rootDirectory) {
+            return $dir !== '.' && $dir !== '..' && is_dir("$rootDirectory/$dir");
         });
         if (count($rootDirChilds) > 1) {
             shuffle($rootDirChilds);
@@ -464,7 +472,6 @@ class FileSystemStorage extends Storage
         $fsFilename = FileSystemHelper::encodeFilename($filename, $this->winFSCharset);
         foreach ($rootDirChilds as $dir) {
             switch (true) {
-                case !is_dir("$rootDirectory/$dir"); // no break
                 case FileSystemHelper::fileExists("$rootDirectory/$dir", $fsFilename, false, $this->winFSCharset); // no break
                 case FileSystemHelper::directoryFilesCount("$rootDirectory/$dir") > $this->maxSubdirFilesCount:
                     $dir = false;
@@ -480,7 +487,7 @@ class FileSystemStorage extends Storage
             $dirpath = "$rootDirectory/$dir";
             if (FileSystemHelper::fileExists($rootDirectory, $dir, false, false)) {
                 $dir = false;
-            } elseif (!FileSystemHelper::createDirectory($dirpath, $this->makeDirMode)) {
+            } elseif (!FileSystemHelper::createDirectory($dirpath, $this->makeDirMode, false)) {
                 throw new InvalidConfigException("Cannot create directory: $dirpath");
             }
         }

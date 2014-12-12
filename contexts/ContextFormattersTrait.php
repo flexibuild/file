@@ -10,7 +10,6 @@ use yii\base\Exception;
 use yii\web\UploadedFile;
 
 use flexibuild\file\File;
-use flexibuild\file\FileHandler;
 use flexibuild\file\events\FileEvent;
 use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\StorageInterface;
@@ -98,6 +97,9 @@ trait ContextFormattersTrait
      */
     public function setFormatters($formatters)
     {
+        if (!is_array($formatters)) {
+            throw new InvalidConfigException('Param $formatters must be an array.');
+        }
         foreach ($formatters as $name => $formatter) {
             if (!preg_match('/^[0-9a-z\_]+$/i', $name)) {
                 throw new InvalidConfigException("Incorrect name '$name', the name of formatter may have digits, letters or underscope only.");
@@ -137,10 +139,11 @@ trait ContextFormattersTrait
      * @param mixed $formatter an instance of [[FormatterInterface]] or config for creating it.
      * @param string|null $name the name of formatter. Null meaning the formatter has not a name (by default).
      * @return FormatterInterface created formatter.
+     * @throws InvalidConfigException if formatter has incorrect format.
      */
     public function instantiateFormatter($formatter, $name = null)
     {
-        if (is_object($formatter)) {
+        if ($formatter instanceof FormatterInterface) {
             return $formatter;
         }
 
@@ -149,17 +152,18 @@ trait ContextFormattersTrait
         } elseif (is_string($formatter)) {
             $formatter = [$formatter];
         }
-        if (is_array($formatter) && isset($formatter[0])) {
-            if (isset($this->formattersAliases[$formatter[0]])) {
-                $className = $this->formattersAliases[$formatter[0]];
+
+        if (is_array($formatter)) {
+            foreach ([$this->formattersAliases, static::$builtInFormatters] as $aliases) {
+                if (isset($formatter[0]) && isset($aliases[$formatter[0]])) {
+                    $formatter = array_replace((array) $aliases[$formatter[0]], array_slice($formatter, 1, null, true));
+                }
             }
-            if (isset(static::$builtInFormatters[$formatter[0]])) {
-                $className = static::$builtInFormatters[$formatter[0]];
-            } else {
+            if (isset($formatter[0])) {
                 $className = $formatter[0];
+                unset($formatter[0]);
+                $formatter = array_merge(['class' => $className], $formatter);
             }
-            unset($formatter[0]);
-            $formatter = array_merge(['class' => $className], $formatter);
         }
 
         $formatter = Yii::createObject($formatter);
@@ -170,7 +174,15 @@ trait ContextFormattersTrait
             if ($name !== null && $formatter->name === null) {
                 $formatter->name = $name;
             }
+        } elseif (!$formatter instanceof FormatterInterface) {
+            if ($name === null) {
+                throw new InvalidConfigException('Cannot create formatter, it must be an instance or config for creating an instance of flexibuid/formatters/FormatterInterface.');
+            } else {
+                throw new InvalidConfigException("Cannot create formatter '$name', it must be an instance or config for creating an instance of flexibuid/formatters/FormatterInterface.");
+            }
         }
+
+        return $formatter;
     }
 
     /**
@@ -225,13 +237,17 @@ trait ContextFormattersTrait
      * 
      * @param string $data string data that can be used for manipulating with file.
      * @param array $formats array names of formats that must be generated.
+     * Null meaning all formats will be generated.
      * @param boolean $regenerate whether formatted version of file must be regenerated.
      * If false and formatted version exists the method will not start generate process.
      * @return string data that can be used for manipulating with file.
      * @throws InvalidConfigException if cannot save file or formatters have invalid config.
      */
-    public function generateFormats($data, $formats, $regenerate = false)
+    public function generateFormats($data, $formats = null, $regenerate = false)
     {
+        if ($formats === null) {
+            $formats = $this->formatterNames();
+        }
         if (!count($formats)) {
             return $data;
         }
@@ -286,19 +302,6 @@ trait ContextFormattersTrait
     }
 
     /**
-     * Generates all formats for the file.
-     * @param string $data string data that can be used for manipulating with file.
-     * @param boolean $regenerate whether formatted version of file must be regenerated.
-     * If false and formatted version exists the method will not start generate process.
-     * @return string new data that can be used for manipulating with file.
-     * @throws InvalidConfigException if cannot save file or formatters have invalid config.
-     */
-    public function generateAllFormats($data, $regenerate = false)
-    {
-        return $this->generateFormats($data, $this->formatterNames(), $regenerate);
-    }
-
-    /**
      * @internal internally used in [[self::generateFormat()]] & [[self::generateFormats()]].
      * Generates formatted version of file.
      * 
@@ -326,7 +329,7 @@ trait ContextFormattersTrait
         $formatter = $this->getFormatter($format);
         if ($formatter instanceof FromFormatter) {
             if ($tmpNameDependentFile === null) {
-                $data = $this->generateFormat($formatter->from, false);
+                $data = $this->generateFormat($data, $formatter->from, false);
                 $tmpNameDependentFile = $storage->getReadFilePath($data, $formatter->from);
             }
             $formattedTmpFile = $formatter->format($tmpNameDependentFile, true);

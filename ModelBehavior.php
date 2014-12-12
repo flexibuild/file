@@ -32,7 +32,6 @@ use flexibuild\file\events\DataChangedEvent;
  */
 class ModelBehavior extends Behavior
 {
-// !!! todo: allowDeletion and prevent replacing alien storage datas.
     /**
      * File attributes that used in the model with them contexts.
      * 
@@ -71,8 +70,7 @@ class ModelBehavior extends Behavior
     public $fileAttributesMap = [];
 
     /**
-     * !!!
-     * @var File[]
+     * @var File[] property that keeps has been already initialized file objects.
      */
     private $_files = [];
 
@@ -112,9 +110,8 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
-     * @param type $name
-     * @return type
+     * @inheritdoc
+     * Magic PHP method. Besides parent logic the method adds magic properties `as{Format}`.
      */
     public function __get($name)
     {
@@ -125,9 +122,8 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
-     * @param type $name
-     * @param type $value
+     * @inheritdoc
+     * Magic PHP method. Besides parent logic the method adds magic properties `as{Format}`.
      */
     public function __set($name, $value)
     {
@@ -138,7 +134,10 @@ class ModelBehavior extends Behavior
         parent::__set($name, $value);
     }
 
-    // !!!
+    /**
+     * @inheritdoc
+     * Magic PHP method. Besides parent logic the method adds magic properties `as{Format}`.
+     */
     public function __isset($name)
     {
         if (!parent::canGetProperty($name, false) && $this->hasFileAttribute($name)) {
@@ -147,7 +146,10 @@ class ModelBehavior extends Behavior
         return parent::__isset($name);
     }
 
-    // !!!
+    /**
+     * @inheritdoc
+     * Magic PHP method. Besides parent logic the method adds magic properties `as{Format}`.
+     */
     public function __unset($name)
     {
         if (!parent::hasProperty($name, false) && $this->hasFileAttribute($name)) {
@@ -158,7 +160,7 @@ class ModelBehavior extends Behavior
 
     /**
      * @inheritdoc
-     * !!!
+     * Besides parent logic the method adds magic properties `as{Format}` logic.
      */
     public function canGetProperty($name, $checkVars = true)
     {
@@ -167,7 +169,7 @@ class ModelBehavior extends Behavior
 
     /**
      * @inheritdoc
-     * !!!
+     * Besides parent logic the method adds magic properties `as{Format}` logic.
      */
     public function canSetProperty($name, $checkVars = true)
     {
@@ -199,12 +201,14 @@ class ModelBehavior extends Behavior
      */
     public function afterValidate($event)
     {
-        // Saving takes place in afterValidate since if validated in beforeValidate
+        // Validating takes place in afterValidate since if validated in beforeValidate
         // we get the following security issue:
         // If we add validators in beforeValidate and some event beforeValidate handler there
         // after returns valid == false then these validators will remain in the model.
         // As a result, all file attributes will be considered safe and can be changed through setAttributes.
         // Choosing between security and performance choice was made on security.
+        // Smaller perfomance means that all file attributes will be validated
+        // even if they was not passed in $model->validate($attribute) method through $attributes param.
         $this->validateFileAttributes();
         $this->saveUploadedFiles(false);
     }
@@ -273,7 +277,8 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
+     * Initializes [[self::$fileAttributeMap]] property.
+     * The method fills this property by file attributes that excepted in it before.
      * @throws InvalidConfigException
      */
     protected function initFileAttributesMap()
@@ -330,9 +335,9 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
+     * Returns the name of attribute, that keeps data value for the `$name` file attribute.
      * @param string $name
-     * @return string
+     * @return string the name of file data attribute.
      * @throws InvalidCallException if the object has not file attribute with this name.
      */
     public function getFileDataAttribute($name)
@@ -344,14 +349,9 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * This property is needed because one data attribute may be assigned with several file attributes.
-     * @var array[] keeps array handled file attributes in format: data attribute => array of file attributes.
-     */
-    private $_handledFileAttributes = [];
-
-    /**
-     * !!!
-     * @param string $name
+     * Returns file object for the `$name` file attribute.
+     * @param string $name the name of file attribute.
+     * @return File the file object.
      * @throws InvalidCallException if the object has not file attribute with this name.
      */
     public function getFileAttribute($name)
@@ -359,27 +359,27 @@ class ModelBehavior extends Behavior
         $dataAttribute = $this->getFileDataAttribute($name);
 
         if (isset($this->_files[$dataAttribute])) {
-            $file = $this->_files[$dataAttribute];
-        } else {
-            $this->_files[$dataAttribute] = $file = $this->createFile($name);
+            return $this->_files[$dataAttribute];
         }
 
-        if (!isset($this->_handledFileAttributes[$dataAttribute][$name])) {
-            $file->getHandler()->on(FileHandler::EVENT_DATA_CHANGED, [$this, 'changeDataAttribute'], [
-                'model' => $this->owner,
-                'attribute' => $dataAttribute,
-            ]);
-            $this->_handledFileAttributes[$dataAttribute][$name] = true;
-        }
-
-        return $file;
+        $file = $this->createFile($name);
+        $file->on(File::EVENT_DATA_CHANGED, [$this, 'changeDataAttribute'], [
+            'model' => $this->owner,
+            'attribute' => $dataAttribute,
+        ]);
+        return $this->_files[$dataAttribute] = $file;
     }
 
     /**
-     * !!!
-     * @param string $name
-     * @param mixed $value
-     * @throws InvalidValueException
+     * Sets value into file attribute object.
+     * @param string $name the name of file attribute.
+     * @param mixed $value value may be one of this:
+     * 
+     * - null, for empty files,
+     * - string, value that will be parsed by [[Context::parseInputValue()]] method,
+     * - an instance of [[UploadedFile]].
+     * 
+     * @throws InvalidValueException if [[Context::parseInputValue()]] will return unexpected value.
      * @throws InvalidCallException if the object has not file attribute with this name.
      */
     public function setFileAttribute($name, $value)
@@ -461,7 +461,7 @@ class ModelBehavior extends Behavior
     }
 
     /**
-     * !!!
+     * Property keeps created validators.
      * @var Validator[]|null
      */
     private $_validators;
@@ -524,7 +524,7 @@ class ModelBehavior extends Behavior
             $fileAttributes = $contexts->current();
 
             foreach ($context->getValidators() as $validator) {
-                $validator = Validator::createValidator($validator[0], $owner, $fileAttributes, array_slice($validator, 1));
+                $validator = Validator::createValidator($validator[0], $owner, $fileAttributes, array_slice($validator, 1, null, true));
                 $result[] = $validator;
             }
 

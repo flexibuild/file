@@ -3,6 +3,8 @@
 namespace flexibuild\file;
 
 use Yii;
+use yii\base\Component;
+use yii\base\InvalidConfigException;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidCallException;
 use yii\base\InvalidParamException;
@@ -14,16 +16,17 @@ use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\Storage;
 use flexibuild\file\contexts\Context;
 use flexibuild\file\formatters\FromFormatter;
+
 use flexibuild\file\events\CannotGetUrlEvent;
 use flexibuild\file\events\CannotGetUrlHandlers;
 use flexibuild\file\events\DataChangedEvent;
+use flexibuild\file\events\FileEvent;
+use flexibuild\file\events\FileValidEvent;
+use flexibuild\file\events\BeforeDeleteEvent;
+use flexibuild\file\events\AfterDeleteEvent;
 
 /**
  * Base file object class which collects basic properties and methods for files.
- * 
- * This class has a bridge to [[FileHandler]] class, and they are associated as one-to-one.
- * It is because this class extends [[\yii\web\UploadedFile]] that extends [[\yii\base\Object]] and does not implement events logic.
- * On other hand we have to use extended from [[\yii\web\UploadedFile]] class for capability with standart yii file validators.
  * 
  * This class changes structure of [[yii\web\UploadedFile]]. All properties and methods
  * will be accessed through getters and setters.
@@ -31,19 +34,60 @@ use flexibuild\file\events\DataChangedEvent;
  * 
  * @author SeynovAM <sejnovalexey@gmail.com>
  * 
- * @property string $data !!!
+ * @property string|null $data string file data that can be used for manipulating with file using in context's storage.
+ * @property string|null $name basename of the file. Null meaning file is empty.
+ * @property string|null $tempName temp filepath for uploaded file, and read file path fot initialized file. Null meaning file is empty.
+ * @property string|null $type string|null mime type of file. Null meaning file is empty.
+ * @property integer|null $size file size in bytes. Null meaning file is empty.
  * 
- * @property-read string $url url to source file !!!
- * @property-read FileHandler $handler !!!
+ * @property integer|null $error file error. It will be:
+ * - integer|null one of UPLOAD_ERR_* constants values for uploaded file,
+ * - UPLOAD_ERR_OK for initialized file,
+ * - UPLOAD_ERR_NO_FILE for empty file.
+ * 
+ * 
+ * @property-read string $url url to source file (@see [[self::getUrl()]]).
  * @property-read boolean $isEmpty whether file is empty or not.
  * @property-read array $formatList names of exists formatted versions for this file.
  * 
  * The class also gives short properties for urls of each format, 
  * for example: `$file->asSmall` is alias to `$file->getUrl('small')`.
  */
-class File extends UploadedFile
+class File extends FileComponent
 {
-// !!! file may be must not use ->context->getStorage(), it must use ->context only.
+    /**
+     * @event CannotGetUrlEvent an event raised when cannot get url.
+     */
+    const EVENT_CANNOT_GET_URL = 'cannotGetUrl';
+
+    /**
+     * @event DataChangedEvent an event raised when data was changed.
+     */
+    const EVENT_DATA_CHANGED = 'dataChanged';
+
+    /**
+     * @event FileValidEvent an event raised before file saving.
+     * You can set [[FileValidEvent::$valid]] property as false to stop saving process.
+     */
+    const EVENT_BEFORE_SAVE = 'beforeSave';
+
+    /**
+     * @event FileEvent an event raised after file saving.
+     */
+    const EVENT_AFTER_SAVE = 'afterSave';
+
+    /**
+     * @event BeforeDeleteEvent an event raised before file deleting.
+     * You can set [[BeforeDeleteEvent::$valid]] property as false to stop deleting process.
+     */
+    const EVENT_BEFORE_DELETE = 'beforeDelete';
+
+    /**
+     * @event AfterDeleteEvent an event raised after file deleting.
+     */
+    const EVENT_AFTER_DELETE = 'afterDelete';
+
+
     /**
      * Const that keeps value for status which means the file is empty.
      */
@@ -100,37 +144,6 @@ class File extends UploadedFile
      */
     public $defaultUrls;
 
-    /**!!!
-     * @var string
-     */
-    public $handlerClass = 'flexibuild\file\FileHandler';
-
-    /**
-     *!!!
-     * @var array
-     */
-    public $handlerConfig = [];
-
-    /**
-     * Event handlers that will be attached to [[FileHandler]] object.
-     * @see FileHandler
-     * @var array of events handler. Each element must be an array that has two or three elements:
-     * - the first (index 0): event name
-     * - the second (index 1): event handler
-     * - the third (index 2, non-required): data that will be attached to handler
-     * 
-     * For example:
-     * ```
-     *      'events' => [
-     *          ['cannotGetUrl', 'flexibuild\file\events\CannotGetUrlHandlers::formatFileOnFly'],
-     *          ['cannotGetUrl', 'flexibuild\file\events\CannotGetUrlHandlers::returnDefaultUrl'],
-     *          ['cannotGetUrl', 'flexibuild\file\events\CannotGetUrlHandlers::returnAboutBlank'],
-     *          ...
-     *      ],
-     * ```
-     */
-    public $events = [];
-
     /**
      * @var string|null the format that will be used in magic [[__toString()]] method by default.
      */
@@ -142,37 +155,38 @@ class File extends UploadedFile
     public $toStringScheme;
 
     /**
-     * @var FileHandler
-     */
-    private $_handler;
-
-    /**
      * @var string data that can be used for manipulating with file from context's storage.
      */
     private $_data;
 
-    /**!!!
-     * @var string|null
+    /**
+     * @var string|null basename of the file. Null meaning file is empty.
      */
     private $_name;
 
-    /**!!!
-     * @var string|null
+    /**
+     * @var string|null temp filepath for uploaded file, and read file path fot initialized file.
+     * Null meaning file is empty.
      */
     private $_tempName;
 
-    /**!!!
-     * @var string|null
+    /**
+     * @var string|null mime type of file. Null meaning file is empty.
      */
     private $_type;
 
-    /**!!!
-     * @var integer|null
+    /**
+     * @var integer|null file size in bytes. Null meaning file is empty.
      */
     private $_size;
 
-    /**!!!
-     * @var integer|null
+    /**
+     * @var integer|null file error. It will be:
+     * 
+     * - integer|null one of UPLOAD_ERR_* constants values for uploaded file,
+     * - UPLOAD_ERR_OK for initialized file,
+     * - UPLOAD_ERR_NO_FILE for empty file.
+     * 
      */
     private $_error;
 
@@ -181,29 +195,16 @@ class File extends UploadedFile
      * @see [[_changeStructure()]]
      * 
      * Checks required property `$context`.
-     * Attaches event handlers from `$events` property.
      * @throws InvalidConfigException if required property `$context` is missed or is incorrect.
      */
     public function init()
     {
-        $this->_handler = Yii::createObject(array_merge([
-            'class' => $this->handlerClass,
-        ], $this->handlerConfig, [
-            'file' => $this,
-        ]));
         $this->_changeStructure();
 
         parent::init();
 
         if (!$this->context instanceof Context) {
             throw new InvalidConfigException('An instance of '.Context::className().' is required for '.get_class($this).'.');
-        }
-
-        foreach ($this->events as $event) {
-            if (!isset($event[0], $event[1])) {
-                throw new InvalidConfigException('Incorrect config of '.get_class($this).'::$events param.');
-            }
-            $this->_handler->on($event[0], $event[1], isset($event[2]) ? $event[2] : null);
         }
     }
 
@@ -251,12 +252,10 @@ class File extends UploadedFile
      * @inheritdoc
      * Returns true for `as{Format}` properties too.
      */
-    public function canGetProperty($name, $checkVars = true)
+    public function canGetProperty($name, $checkVars = true, $checkBehaviors = true)
     {
-        if ($this->_parseFormatAlias($name) !== false) {
-            return true;
-        }
-        return parent::canGetProperty($name, $checkVars);
+        return parent::canGetProperty($name, $checkVars, $checkBehaviors) ||
+            $this->_parseFormatAlias($name) !== false;
     }
 
     /**
@@ -265,7 +264,7 @@ class File extends UploadedFile
      */
     public function __get($name)
     {
-        if (false !== $format = $this->_parseFormatAlias($name)) {
+        if (!parent::canGetProperty($name) && (false !== $format = $this->_parseFormatAlias($name))) {
             return $this->getUrl($format);
         }
         return parent::__get($name);
@@ -277,7 +276,7 @@ class File extends UploadedFile
      */
     public function __set($name, $value)
     {
-        if ($this->_parseFormatAlias($name) !== false) {
+        if (!parent::canSetProperty($name) && $this->_parseFormatAlias($name) !== false) {
             throw new InvalidCallException('Setting read-only property: ' . get_class($this) . "::$name.");
         }
         parent::__set($name, $value);
@@ -289,7 +288,7 @@ class File extends UploadedFile
      */
     public function __isset($name)
     {
-        if (false !== $format = $this->_parseFormatAlias($name)) {
+        if (!parent::canGetProperty($name) && (false !== $format = $this->_parseFormatAlias($name))) {
             try {
                 return $this->getUrl($format) !== null;
             } catch (\Exception $ex) {
@@ -305,21 +304,16 @@ class File extends UploadedFile
      */
     public function __unset($name, $value)
     {
-        if ($this->_parseFormatAlias($name) !== false) {
+        if (!parent::canSetProperty($name) && $this->_parseFormatAlias($name) !== false) {
             throw new InvalidCallException('Unsetting read-only property: ' . get_class($this) . "::$name.");
         }
-        parent::__set($name, $value);
-    }
-
-    // !!!
-    public function getHandler()
-    {
-        return $this->_handler;
+        parent::__unset($name, $value);
     }
 
     /**
-     * !!!
-     * @return type
+     * Gets file storage data value.
+     * @return string|null data that can be used for manipulating with file from context's storage.
+     * Null will be returned for empty files.
      */
     public function getData()
     {
@@ -327,17 +321,29 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
-     * @param type $data
+     * Sets file storage data value.
+     * @param string $data data that can be used for manipulating with file from context's storage.
      */
     public function setData($data)
     {
         $oldData = $this->_data;
         $this->_data = $data;
 
-        if ($oldData !== $data) {
-            $this->getHandler()->triggerDataChangedEvent($oldData, $data);
+        if ($oldData === $data) {
+            return;
         }
+
+        $this->resetCalculatedProperties();
+        if (!$this->hasEventHandlers(self::EVENT_DATA_CHANGED)) {
+            return;
+        }
+
+        $event = new DataChangedEvent();
+        $event->sender = $this;
+        $event->oldFileData = $oldData;
+        $event->newFileData = $data;
+
+        $this->trigger(self::EVENT_DATA_CHANGED, $event);
     }
 
     /**
@@ -390,8 +396,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
-     * @return type
+     * Gets  basename of the file.
+     * @return string|null basename of the file. Null meaning file is empty.
      */
     public function getName()
     {
@@ -410,7 +416,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Sets basename of the file.
+     * @param string|null $name basename of the file. Null meaning file is empty.
      */
     public function setName($name)
     {
@@ -418,7 +425,9 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Gets temp filepath or read filepath for the file.
+     * @return string|null temp filepath for uploaded file, and read file path fot initialized file.
+     * Null meaning file is empty.
      */
     public function getTempName()
     {
@@ -432,7 +441,9 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Sets temp filepath or read filepath for the file.
+     * @param string|null $tempName temp filepath for uploaded file, and read file path fot initialized file.
+     * Null meaning file is empty.
      */
     public function setTempName($tempName)
     {
@@ -440,7 +451,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Gets mime type of file.
+     * @return string|null mime type of file. Null meaning file is empty.
      */
     public function getType()
     {
@@ -460,7 +472,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Sets mime type of file.
+     * @param string|null $type mime type of file. Null meaning file is empty.
      */
     public function setType($type)
     {
@@ -468,7 +481,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Gets file size in bytes.
+     * @return integer|null file size in bytes. Null meaning file is empty.
      */
     public function getSize()
     {
@@ -488,7 +502,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Sets file size in bytes.
+     * @param integer|nul $size file size in bytes. Null meaning file is empty.
      */
     public function setSize($size)
     {
@@ -496,7 +511,13 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Gets file error.
+     * @return integer|null $error file error. It will be:
+     * 
+     * - integer|null one of UPLOAD_ERR_* constants values for uploaded file,
+     * - UPLOAD_ERR_OK for initialized file,
+     * - UPLOAD_ERR_NO_FILE for empty file.
+     * 
      */
     public function getError()
     {
@@ -512,7 +533,13 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Sets file error. 
+     * @param integer|null $error file error. It can be:
+     * 
+     * - integer|null one of UPLOAD_ERR_* constants values for uploaded file,
+     * - UPLOAD_ERR_OK for initialized file,
+     * - UPLOAD_ERR_NO_FILE for empty file.
+     * 
      */
     public function setError($error)
     {
@@ -533,7 +560,7 @@ class File extends UploadedFile
     public function getDefaultUrl($format = null, $scheme = null)
     {
         if (is_array($this->defaultUrls)) {
-            if ($format !== null && array_key_exists($format, $this->defaultUrls)) {
+            if ($format !== null && (isset($this->defaultUrls[$format]) || array_key_exists($format, $this->defaultUrls))) {
                 $url = $this->defaultUrls[$format];
             } elseif (isset($this->defaultUrls[0])) {
                 $url = $this->defaultUrls[0];
@@ -542,10 +569,7 @@ class File extends UploadedFile
             $url = $this->defaultUrls;
         }
 
-        if (isset($url)) {
-            return Url::to($url, $scheme);
-        }
-        return null;
+        return $url === null ? null : Url::to($url, $scheme);
     }
 
     /**
@@ -588,7 +612,21 @@ class File extends UploadedFile
             }
         }
 
-        return $this->getHandler()->triggerCannotGetUrl($case, $format, $scheme, isset($exception) ? $exception : null);
+        if ($this->hasEventHandlers(self::EVENT_CANNOT_GET_URL)) {
+            $event = new CannotGetUrlEvent();
+            $event->sender = $this;
+            $event->case = $case;
+            $event->format = $format;
+            $event->scheme = $scheme;
+            $event->exception = isset($exception) ? $exception : null;
+
+            $this->trigger(self::EVENT_CANNOT_GET_URL, $event);
+
+            if ($event->url !== null) {
+                return $event->url;
+            }
+        }
+        CannotGetUrlHandlers::throwException($event);
     }
 
     /**
@@ -613,7 +651,7 @@ class File extends UploadedFile
     }
 
     /**
-     * Generates set of formatters. This method optimized formats generating according to [[FormatterFrom]] formatters.
+     * Generates set of formatters. This method optimizes formats generating according to [[FormatterFrom]] formatters.
      * 
      * @param array|null $formats array names of formats that must be generated.
      * Null meaning all formats will be generated.
@@ -631,9 +669,7 @@ class File extends UploadedFile
             }
         }
 
-        $data = $formats === null
-            ? $this->context->generateAllFormats($this->getData(), $regenerate)
-            : $this->context->generateFormats($this->getData(), $formats, $regenerate);
+        $data = $this->context->generateFormats($this->getData(), $formats, $regenerate);
         $this->setData($data);
     }
 
@@ -656,7 +692,8 @@ class File extends UploadedFile
     }
 
     /**
-     * !!!
+     * Clears all calculated properties: `name`, `tempName`, `type`,
+     * `size` and `error.`
      */
     protected function resetCalculatedProperties()
     {
@@ -722,7 +759,16 @@ class File extends UploadedFile
      */
     public function beforeSave()
     {
-        return $this->getHandler()->triggerBeforeSave();
+        if (!$this->hasEventHandlers(self::EVENT_BEFORE_SAVE)) {
+            return true;
+        }
+
+        $event = new FileValidEvent();
+        $event->sender = $this;
+        $event->valid = true;
+
+        $this->trigger(self::EVENT_BEFORE_SAVE, $event);
+        return (bool) $event->valid;
     }
 
     /**
@@ -731,26 +777,55 @@ class File extends UploadedFile
      */
     public function afterSave()
     {
-        $this->getHandler()->triggerAfterSave();
+        if (!$this->hasEventHandlers(self::EVENT_AFTER_SAVE)) {
+            return;
+        }
+
+        $event = new FileEvent();
+        $event->sender = $this;
+
+        $this->trigger(self::EVENT_AFTER_SAVE, $event);
     }
 
     /**
      * Method that will be called before file deleting.
      * If you override this method don't forget call parent::beforeDelete().
+     * @param string $format  string name of format which will be deleted.
+     * Null meaning source file was deleted.
      * @return boolean whether need to continue deleting process.
      */
-    public function beforeDelete()
+    public function beforeDelete($format = null)
     {
-        return $this->getHandler()->triggerBeforeDelete();
+        if (!$this->hasEventHandlers(self::EVENT_BEFORE_DELETE)) {
+            return true;
+        }
+
+        $event = new BeforeDeleteEvent();
+        $event->sender = $this;
+        $event->valid = true;
+        $event->format = $format;
+
+        $this->trigger(self::EVENT_BEFORE_DELETE, $event);
+        return (bool) $event->valid;
     }
 
     /**
      * Method that will be called after deleting file.
      * If you override this method don't forget call parent::afterDelete().
+     * @param string $format  string name of format which will be deleted.
+     * Null meaning source file was deleted.
      */
-    public function afterDelete()
+    public function afterDelete($format = null)
     {
-        $this->getHandler()->triggerAfterDelete();
+        if (!$this->hasEventHandlers(self::EVENT_AFTER_DELETE)) {
+            return;
+        }
+
+        $event = new AfterDeleteEvent();
+        $event->sender = $this;
+        $event->format = $format;
+
+        $this->trigger(self::EVENT_AFTER_DELETE, $event);
     }
 
     /**
@@ -781,7 +856,7 @@ class File extends UploadedFile
                 $result = false;
             }
         } elseif ($this->status === self::STATUS_UPLOADED_FILE) {
-            $result = @unlink($this->getTempName());
+            $result = (bool) @unlink($this->getTempName());
         } else {
             $result = false;
         }
@@ -802,7 +877,7 @@ class File extends UploadedFile
     {
         if ($this->status !== self::STATUS_INITIALIZED_FILE) {
             return false;
-        } elseif (!$this->getHandler()->triggerBeforeDelete($format)) {
+        } elseif (!$this->beforeDelete($format)) {
             return false;
         }
 
@@ -814,7 +889,7 @@ class File extends UploadedFile
         }
 
         if ($result) {
-            $this->getHandler()->triggerAfterDelete($format);
+            $this->afterDelete($format);
         }
         return $result;
     }
@@ -841,7 +916,7 @@ class File extends UploadedFile
      */
     public function getExtension()
     {
-        if ($this->status === FileHandler::STATUS_INITIALIZED_FILE) {
+        if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
                 return $storage->getExtension($this->getData());
@@ -868,7 +943,8 @@ class File extends UploadedFile
      */
     public function exists($format = null)
     {
-        return !$this->getIsEmpty() && $this->context->getStorage()->fileExists($this->getData(), $format);
+        return $this->status === self::STATUS_INITIALIZED_FILE && 
+            $this->context->getStorage()->fileExists($this->getData(), $format);
     }
 
     /**

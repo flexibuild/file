@@ -50,7 +50,7 @@ class ChainFormatter extends Formatter
     protected function initFormatters()
     {
         if (!is_array($this->formatters)) {
-            throw new InvalidConfigException('Param $formatters is required for ' . get_class($this) . '.');
+            throw new InvalidConfigException('Param $formatters is required for ' . get_class($this) . ' and must be an array.');
         }
         foreach ($this->formatters as $key => $formatter) {
             $this->formatters[$key] = $this->context->instantiateFormatter($formatter);
