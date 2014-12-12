@@ -3,7 +3,6 @@
 namespace flexibuild\file;
 
 use Yii;
-use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidCallException;
@@ -15,7 +14,6 @@ use yii\helpers\Url;
 use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\Storage;
 use flexibuild\file\contexts\Context;
-use flexibuild\file\formatters\FromFormatter;
 
 use flexibuild\file\events\CannotGetUrlEvent;
 use flexibuild\file\events\CannotGetUrlHandlers;

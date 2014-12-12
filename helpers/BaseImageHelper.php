@@ -9,7 +9,6 @@ if (YII_DEBUG && \Yii::getAlias('@yii/imagine', false) /* === false*/) {
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
-use yii\helpers\ArrayHelper;
 
 use yii\imagine\Image;
 use yii\imagine\BaseImage;

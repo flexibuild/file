@@ -2,7 +2,6 @@
 
 namespace flexibuild\file;
 
-use Yii;
 use yii\base\Behavior;
 use yii\base\Event;
 use yii\base\Model;
@@ -11,13 +10,9 @@ use yii\base\InvalidCallException;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidValueException;
 use yii\web\UploadedFile;
-use yii\helpers\StringHelper;
 use yii\validators\Validator;
-use yii\validators\FileValidator;
 
 use flexibuild\file\contexts\Context;
-use flexibuild\file\events\CannotGetUrlEvent;
-use flexibuild\file\events\CannotGetUrlHandlers;
 use flexibuild\file\events\DataChangedEvent;
 
 /**

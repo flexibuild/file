@@ -3,23 +3,14 @@
 namespace flexibuild\file\contexts;
 
 use Yii;
-use yii\base\Object;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
-use yii\base\Exception;
-use yii\web\UploadedFile;
 
-use flexibuild\file\File;
-use flexibuild\file\events\FileEvent;
-use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\StorageInterface;
 use flexibuild\file\storages\Storage;
-use flexibuild\file\storages\FileSystemStorage;
 use flexibuild\file\formatters\FormatterInterface;
 use flexibuild\file\formatters\Formatter;
-use flexibuild\file\formatters\InlineFormatter;
 use flexibuild\file\formatters\FromFormatter;
-use flexibuild\file\formatters\ChainedFormatter;
 
 /**
  * Horizontally separated context's logic for formatters.

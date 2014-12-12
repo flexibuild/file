@@ -4,7 +4,6 @@ namespace flexibuild\file\storages;
 
 use Yii;
 use yii\base\InvalidConfigException;
-use yii\base\InvalidValueException;
 use yii\base\InvalidParamException;
 use yii\helpers\StringHelper;
 
