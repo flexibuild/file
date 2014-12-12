@@ -67,7 +67,6 @@ class Context extends Component implements ContextInterface
      * @var string name of this context.
      */
     public $name;
-    //!!! check name chars in ContextsManager
 
     /**
      * Class name that will be used for creating file.
