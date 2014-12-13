@@ -20,7 +20,22 @@ class BaseFileSystemHelper extends BaseFileHelper
      * You can use Yii aliases.
      * Null meaning `sys_get_temp_dir()` will be used.
      */
-    static $tempDir = '@runtime/flexibuild/temp';
+    public static $tempDir = '@runtime/flexibuild/temp';
+
+    /**
+     * Used only for windows platforms.
+     * Filenames will be converted in this charset by `iconv()` method before using in file methods.
+     * 
+     * @see [[self::getFileSystemCharset()]]
+     * 
+     * @var mixed string|null|false charset for using in `iconv` method, may be on of the followings:
+     * 
+     * - null, the helper will try to detect file system charset,
+     * - false, filename will not be converted,
+     * - string, this charset will be used.
+     * 
+     */
+    public static $winFSCharset = null;
 
     /**
      * Method works like php `basename` function. Rewrited because php's basename
@@ -150,12 +165,9 @@ class BaseFileSystemHelper extends BaseFileHelper
      * @param bool|null $caseSensitive boolean whether method must use case sensitive name comparing.
      * Null meaning comparing will be done according to local file system case sensitivity.
      * This param does not affect to working with `$dir` param.
-     * @param mixed $winFSCharset charset of local file system.
-     * Null meaning the helper will try to detect filesystem charset.
-     * False meaning the helper will not convert filename.
      * @return boolean whether the file exists.
      */
-    public static function fileExists($dir, $filename, $caseSensitive = null, $winFSCharset = null)
+    public static function fileExists($dir, $filename, $caseSensitive = null)
     {
         if (!is_dir($dir)) {
             return false;
@@ -169,7 +181,7 @@ class BaseFileSystemHelper extends BaseFileHelper
                 return false;
             }
 
-            $charset = static::detectWindowsFSCharset($winFSCharset, true) ?: Yii::$app->charset;
+            $charset = static::detectWindowsFSCharset() ?: Yii::$app->charset;
             $filename = mb_strtolower($filename, $charset);
         }
         $filename = rtrim($filename, '\/');
@@ -296,14 +308,11 @@ class BaseFileSystemHelper extends BaseFileHelper
      * This method will convert filename only if local platform is windows.
      * 
      * @param string $filename file name that must be encoded.
-     * @param mixed $winFSCharset charset of local file system.
-     * Null meaning the helper will try to detect filesystem charset.
-     * False meaning the helper will not convert filename.
      * @return string|boolean converted filename or false on failure.
      */
-    public static function encodeFilename($filename, $winFSCharset = null)
+    public static function encodeFilename($filename)
     {
-        $convertCharset = static::detectWindowsFSCharset($winFSCharset);
+        $convertCharset = static::detectWindowsFSCharset(false);
         if ($convertCharset === false) {
             return $filename;
         }
@@ -318,14 +327,11 @@ class BaseFileSystemHelper extends BaseFileHelper
      * Input file name is string returned from different file php functions, returned value will have Yii app charset.
      * 
      * @param string $fsFilename filename which has local file system charset.
-     * @param mixed $winFSCharset charset of local file system.
-     * Null meaning the helper will try to detect filesystem charset.
-     * False meaning the helper will not convert filename.
      * @return string|boolean converted filename or false on failure.
      */
-    public static function decodeFilename($fsFilename, $winFSCharset = null)
+    public static function decodeFilename($fsFilename)
     {
-        $convertCharset = static::detectWindowsFSCharset($winFSCharset, true);
+        $convertCharset = static::detectWindowsFSCharset();
         if ($convertCharset === false) {
             return $fsFilename;
         }
@@ -339,46 +345,41 @@ class BaseFileSystemHelper extends BaseFileHelper
      * After that some filename chars may be will changed by '//TRANSLIT' and/or '//IGNORE' `iconv()` special mode.
      * 
      * @param string $filename the filename that must be normalized.
-     * @param mixed $winFSCharset charset of local file system.
-     * Null meaning the helper will try to detect filesystem charset.
-     * False meaning the helper will not convert filename.
      * @return string|boolean normalized filename or false on failure.
      */
-    public static function normalizeFilename($filename, $winFSCharset)
+    public static function normalizeFilename($filename)
     {
-        $fsFilename = static::encodeFilename($filename, $winFSCharset);
-        return $fsFilename === false ? false : static::decodeFilename($fsFilename, $winFSCharset);
+        $fsFilename = static::encodeFilename($filename);
+        return $fsFilename === false ? false : static::decodeFilename($fsFilename);
     }
 
     /**
      * Detects windows filesystem charset. Only for windows platforms.
-     * @param mixed $winFSCharset charset of local file system.
-     * Null meaning the helper will try to detect filesystem charset.
-     * False meaning the helper will not convert filename.
      * @param boolean $cutSpecialModes value that indicates whether method must
      * cut special modes (like //TRANSLIT or //IGNORE) or not.
      * @return string|false string detected file system charset. False meaning converting is not needed.
+     * True by default.
      */
-    protected static function detectWindowsFSCharset($winFSCharset = null, $cutSpecialModes = false)
+    protected static function detectWindowsFSCharset($cutSpecialModes = true)
     {
         if (!static::isWindowsOS()) {
             return false;
         }
 
-        if ($winFSCharset === null) {
+        if (self::$winFSCharset === null) {
             if ($detectedCharset = static::getFileSystemCharset()) {
                 return $cutSpecialModes ? $detectedCharset : "$detectedCharset//TRANSLIT//IGNORE";
             } else {
                 return false;
             }
-        } elseif ($winFSCharset === false) {
+        } elseif (self::$winFSCharset === false) {
             return false;
         }
 
         if ($cutSpecialModes) {
-            return str_ireplace(['//TRANSLIT', '//IGNORE'], ['', ''], $winFSCharset);
+            return str_ireplace(['//TRANSLIT', '//IGNORE'], ['', ''], self::$winFSCharset);
         }
-        return $winFSCharset;
+        return self::$winFSCharset;
     }
 
     /**
@@ -569,7 +570,7 @@ class BaseFileSystemHelper extends BaseFileHelper
         while ($fileName === false) {
             $fileName = Yii::$app->getSecurity()->generateRandomString(16) . 
                 ($extension === null ? '' : ".$extension");
-            if (static::fileExists($dir, $fileName, null, false)) {
+            if (static::fileExists($dir, $fileName, null)) {
                 $fileName = false;
             }
         }

@@ -38,6 +38,9 @@ class ContextManager extends Component
      */
     public $defaultContext = 'flexibuild\file\contexts\Context';
 
+    /**
+     * @var array array of contexts config or context objects.
+     */
     private $_contexts = [];
 
     /**

@@ -46,7 +46,15 @@ class BasePdfHelper
      */
     public static function savePreview($pdfFilePath, $destImagePath)
     {
-        $content = static::getPreview($pdfFilePath, FileSystemHelper::extension($destImagePath));
+        $decodedDestImagePath = FileSystemHelper::decodeFilename($destImagePath);
+        if ($decodedDestImagePath === false) {
+            $extension = null;
+        } else {
+            $extension = FileSystemHelper::extension($decodedDestImagePath);
+            $extension = FileSystemHelper::encodeFilename($extension);
+        }
+
+        $content = static::getPreview($pdfFilePath, $extension);
         if (false === @file_put_contents($destImagePath, $content)) {
             throw new InvalidParamException("Cannot save file: $destImagePath");
         }

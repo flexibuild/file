@@ -108,23 +108,6 @@ class Context extends Component
      */
     public $generateFormatsAfterSave = true;
 
-    // !!! add manager property
-    // !!! may be winFSCharset must be in manager
-    /**
-     * Used only for windows platforms.
-     * Filenames will be converted in this charset by `iconv()` method before using in file methods.
-     * 
-     * @see [[\flexibuild\file\helpers\FileSystemHelper::getFileSystemCharset()]]
-     * 
-     * @var mixed string|null|false charset for using in `iconv` method, may be on of the followings:
-     * 
-     * - null, file systems helper will try to detect file system charset,
-     * - false, filename will not be converted,
-     * - string, this charset will be used.
-     * 
-     */
-    public $winFSCharset = null;
-
     /**
      * @var mixed
      */
