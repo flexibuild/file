@@ -24,20 +24,11 @@ use flexibuild\file\contexts\Context;
 abstract class Storage extends Object implements StorageInterface
 {
     /**
-     * Magic file param that will be passed in methods of [[\yii\helpers\FileHelper]].
-     * @var string $magicFile name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
-     * This will be passed as the second parameter to [finfo_open()](http://php.net/manual/en/function.finfo-open.php)
-     * when the `fileinfo` extension is installed. If the MIME type is being determined based via [[getMimeTypeByExtension()]]
-     * and this is null, it will use the file specified by [[mimeMagicFile]].
-     */
-    public $magicFile;
-
-    /**
      * Param that will be passed as `$checkExtension` param in [[\yii\helpers\FileHelper]].
      * @var boolean $checkExtension whether to use the file extension to determine the MIME type in case
      * `finfo_open()` cannot determine it.
      */
-    public $tryDetectMimeTypeByExtension = true;
+    public $tryDetectMimeTypeByExtension = false;
 
     /**
      * @var Context the owner of this storage.
@@ -205,7 +196,7 @@ abstract class Storage extends Object implements StorageInterface
     public function getMimeType($data, $format = null)
     {
         $path = $this->getReadFilePath($data, $format);
-        return FileSystemHelper::getMimeType($path, $this->magicFile, $this->tryDetectMimeTypeByExtension);
+        return FileSystemHelper::getMimeType($path, null, $this->tryDetectMimeTypeByExtension);
     }
 
     /**

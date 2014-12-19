@@ -10,6 +10,8 @@ use flexibuild\file\File;
 
 /**
  * @author SeynovAM <sejnovalexey@gmail.com>
+ * 
+ * @property-read string $inputId the id of file input.
  */
 class SimpleFile extends InputWidget
 {
@@ -20,6 +22,16 @@ class SimpleFile extends InputWidget
      * Null (default) meaning link to the source file will be rendered.
      */
     public $linkFormat = null;
+
+    /**
+     * @var string the scheme for link which must be rendered when file has been already uploaded:
+     *
+     * - `false` (default): generating a relative URL.
+     * - `true`: returning an absolute base URL whose scheme is the same as that in [[\yii\web\UrlManager::hostInfo]].
+     * - string: generating an absolute URL with the specified scheme (either `http` or `https`).
+     * 
+     */
+    public $linkScheme = false;
 
     /**
      * @var array html options of link. One target '_blank' property by default.
@@ -65,35 +77,9 @@ class SimpleFile extends InputWidget
      */
     public function run()
     {
-        $file = $this->model->{$this->attribute};
-        /* @var $file File */
-        $context = $file->context;
-        /* @var $context \flexibuild\file\contexts\Context */
-
-        $link = null;
-        if ($file->exists($this->linkFormat)) {
-            $scheme = isset($this->linkOptions['scheme']) ? $this->linkOptions['scheme'] : null;
-            unset($this->linkOptions['scheme']);
-            $link = Html::a(Html::encode($file->getName()), $file->getUrl($this->linkFormat, $scheme), $this->linkOptions);
-        } elseif ($this->linkFormat !== null && $file->exists()) {
-            $link = Html::tag('span', Html::encode($file->getName()));
-        }
-
-        $name = isset($this->options['name']) ? $this->options['name'] : Html::getInputName($this->model, $this->attribute);
-        $this->options['name'] = $name;
-        $this->options['value'] = false;
-
-        $input = Html::activeHiddenInput($this->model, $this->attribute, [
-            'name' => $name,
-            'value' => $context->postParamUploadPrefix . $name .
-                $context->postParamStoragePrefix . $file->getData(),
-        ]);
-
-        if (!isset($this->options['id'])) {
-            $this->options['id'] = Html::getInputId($this->model, $this->attribute);
-        }
-        $input .= Html::activeInput('file', $this->model, $this->attribute, $this->options);
-        $this->registerChangeEnctypeScripts($this->options['id']);
+        $link = $this->renderLink();
+        $input = $this->renderInput();
+        $this->registerChangeEnctypeScripts($this->getInputId());
 
         if ($link === null && $this->emptyFileTemplate !== null) {
             echo strtr($this->emptyFileTemplate, [
@@ -105,5 +91,74 @@ class SimpleFile extends InputWidget
                 '{input}' => $input,
             ]);
         }
+    }
+
+    /**
+     * Renders link html, if file has been already uploaded.
+     * It renders link (tag 'a') if file with [[self::$linkFormat]] exists,
+     * otherwise the method tries to render tag 'span' with file name.
+     * @return string|null rendered link or span. Null meaning file has not been uploaded yet 
+     * or link does not exists.
+     */
+    public function renderLink()
+    {
+        if ($this->_file()->exists($this->linkFormat)) {
+            return Html::a(Html::encode($this->_file()->getName()), $this->_file()->getUrl($this->linkFormat, $this->linkScheme), $this->linkOptions);
+        } elseif ($this->linkFormat !== null && $this->_file()->exists()) {
+            return Html::tag('span', Html::encode($this->_file()->getName()));
+        }
+        return null;
+    }
+
+    /**
+     * Renders inputs for file. The method renders hidden and file inputs.
+     * Hidden input is need for keeping attribute POST name and current file storage data.
+     * File input is need for possibillity to change existing file.
+     * @return string the rendered inputs content.
+     */
+    public function renderInput()
+    {
+        $options = $this->options;
+        $name = isset($options['name']) ? $options['name'] : Html::getInputName($this->model, $this->attribute);
+
+        $result = Html::activeHiddenInput($this->model, $this->attribute, [
+            'name' => $name,
+            'value' => $this->_context()->postParamUploadPrefix . $name .
+                $this->_context()->postParamStoragePrefix . $this->_file()->getData(),
+        ]);
+
+        $options['name'] = $name;
+        $options['value'] = false;
+        $options['id'] = $this->getInputId();
+        $result .= Html::activeInput('file', $this->model, $this->attribute, $options);
+
+        return $result;
+    }
+
+    /**
+     * Returns html id attribute value for input file tag.
+     * @return string the id of file input.
+     */
+    public function getInputId()
+    {
+        return isset($this->options['id']) ? $this->options['id'] : Html::getInputId($this->model, $this->attribute);
+    }
+
+    /**
+     * Method-helper for retreiving File object.
+     * @return File the File object.
+     */
+    private function _file()
+    {
+        return $this->model->{$this->attribute};
+    }
+
+    /**
+     * Method-helper for retreiving Context object.
+     * @return \flexibuild\file\contexts\Context the context object.
+     */
+    private function _context()
+    {
+        return $this->_file()->context;
     }
 }

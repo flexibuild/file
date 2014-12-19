@@ -142,14 +142,14 @@ class File extends FileComponent
     public $defaultUrls;
 
     /**
-     * @var string|null the format that will be used in magic [[__toString()]] method by default.
+     * @var string|null the format that will be used in magic [[self::__toString()]] method by default.
      */
-    public $toStringFormat;
+    public $toStringFormat = null;
 
     /**
-     * @var mixed the scheme value that will be used in magic [[__toString()]] method by default.
+     * @var mixed the scheme value that will be used in magic [[self::__toString()]] method by default.
      */
-    public $toStringScheme;
+    public $toStringScheme = false;
 
     /**
      * @var string data that can be used for manipulating with file from context's storage.
@@ -554,7 +554,7 @@ class File extends FileComponent
      * @return string|null the url to source or formatted file according to `$format` param.
      * Null meaning default url was not defined.
      */
-    public function getDefaultUrl($format = null, $scheme = null)
+    public function getDefaultUrl($format = null, $scheme = false)
     {
         if (is_array($this->defaultUrls)) {
             if ($format !== null && (isset($this->defaultUrls[$format]) || array_key_exists($format, $this->defaultUrls))) {
@@ -584,7 +584,7 @@ class File extends FileComponent
      * 
      * @return string the url to source or formatted file according to `$format` param.
      */
-    public function getUrl($format = null, $scheme = null)
+    public function getUrl($format = null, $scheme = false)
     {
         if ($this->status === self::STATUS_EMPTY_FILE) {
             if (null !== $result = $this->getDefaultUrl($format, $scheme)) {

@@ -38,6 +38,27 @@ class BaseFileSystemHelper extends BaseFileHelper
     public static $winFSCharset = null;
 
     /**
+     * The property created because param `$magicFile` in [[static::getMimeType()]] will be used only as path to php file that returns mime types array.
+     * This added because the logic of `finfo_*` magic file differs from the logic of [[self::loadMimeTypes()]] magic file.
+     * 
+     * Method [[static::getMimeType()]] will use this param for `finfo_*` functions when null passed in `$finfoMagicFile`.
+     * and [[static::$mimeMagicFile]] for [[self::loadMimeTypes()]] method.
+     * 
+     * @var string name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
+     * This will be passed as the second parameter to [finfo_open()](http://php.net/manual/en/function.finfo-open.php)
+     * when the `fileinfo` extension is installed. If the MIME type is being determined based via [[getMimeTypeByExtension()]]
+     * and this is null, it will use the file specified by [[mimeMagicFile]].
+     */
+    public static $finfoMagicFile = null;
+
+    /**
+     * Param that will be passed as `$checkExtension` param in [[\yii\helpers\FileHelper]] by default.
+     * @var boolean $checkExtension whether to use the file extension to determine the MIME type in case
+     * `finfo_open()` cannot determine it.
+     */
+    public static $defaultCheckExtension = true;
+
+    /**
      * Method works like php `basename` function. Rewrited because php's basename
      * works incorrectly with some utf8 names.
      * @param string $filepath input file path.
@@ -269,20 +290,70 @@ class BaseFileSystemHelper extends BaseFileHelper
     }
 
     /**
+     * @inheritdoc
+     * The `$file` param must be in local file system charset.
+     * 
+     * The method differs from [[parent::getMimeType()]] method with params logic.
+     * 
+     * The param `$magicFile` in the method will be used only as path to php file that returns mime types array.
+     * There is because the logic of `finfo_*` magic file differs from the logic of [[self::loadMimeTypes()]] magic file.
+     * 
+     * @param string|null $finfoMagicFile this param will be used in `finfo_*` funcitons.
+     * Null (default) meaning [[static::$finfoMagicFile]] will be used.
+     * 
+     * Also if null (as default) will be passed in `$checkExtension` than [[static::$defaultCheckExtension]] will be used.
+     */
+    public static function getMimeType($file, $magicFile = null, $checkExtension = null, $finfoMagicFile = null)
+    {
+        if ($checkExtension === null) {
+            $checkExtension = static::$defaultCheckExtension;
+        }
+
+        if (!extension_loaded('fileinfo')) {
+            if ($checkExtension) {
+                return static::getMimeTypeByExtension($file, $magicFile);
+            } else {
+                throw new InvalidConfigException('The fileinfo PHP extension is not installed.');
+            }
+        }
+
+        if ($finfoMagicFile === null) {
+            $finfoMagicFile = static::$finfoMagicFile;
+        }
+        $finfoMagicFile = $finfoMagicFile === null ? null : Yii::getAlias($finfoMagicFile);
+        $info = finfo_open(FILEINFO_MIME_TYPE, $finfoMagicFile);
+
+        if ($info) {
+            $result = finfo_file($info, $file);
+            finfo_close($info);
+
+            if ($result !== false) {
+                return $result;
+            }
+        }
+
+        return $checkExtension ? static::getMimeTypeByExtension($file, $magicFile) : null;
+    }
+
+    /**
      * Method was override for using [[static::extension()]] method on parsing file extension.
-     * The `$file` param must have Yii application charset.
+     * The `$file` param must have local file system charset.
+     * 
      * @inheritdoc
      */
     public static function getMimeTypeByExtension($file, $magicFile = null)
     {
-        $mimeTypes = static::loadMimeTypes($magicFile);
-        $ext = static::extension($file);
+        if (false === $decodedFile = static::decodeFilename($file)) {
+            return null;
+        } 
+        $ext = static::extension($decodedFile);
+        if ($ext === '' || $ext === null) {
+            return null;
+        }
 
-        if ($ext !== '' && $ext !== null) {
-            $ext = strtolower($ext);
-            if (isset($mimeTypes[$ext])) {
-                return $mimeTypes[$ext];
-            }
+        $mimeTypes = static::loadMimeTypes($magicFile);
+        if (isset($mimeTypes[$ext])) {
+            return $mimeTypes[$ext];
         }
 
         return null;
@@ -366,20 +437,20 @@ class BaseFileSystemHelper extends BaseFileHelper
             return false;
         }
 
-        if (self::$winFSCharset === null) {
+        if (static::$winFSCharset === null) {
             if ($detectedCharset = static::getFileSystemCharset()) {
                 return $cutSpecialModes ? $detectedCharset : "$detectedCharset//TRANSLIT//IGNORE";
             } else {
                 return false;
             }
-        } elseif (self::$winFSCharset === false) {
+        } elseif (static::$winFSCharset === false) {
             return false;
         }
 
         if ($cutSpecialModes) {
-            return str_ireplace(['//TRANSLIT', '//IGNORE'], ['', ''], self::$winFSCharset);
+            return str_ireplace(['//TRANSLIT', '//IGNORE'], ['', ''], static::$winFSCharset);
         }
-        return self::$winFSCharset;
+        return static::$winFSCharset;
     }
 
     /**
@@ -557,9 +628,9 @@ class BaseFileSystemHelper extends BaseFileHelper
 
     /**
      * Generates new name for temporary file. This method creates directory if not exists.
-     * This method use [[self::$tempDir]] param as directory for keeping temp files.
-     * @param string|null $extension extension which file must have.
-     * @return string full path to temp file.
+     * This method use [[static::$tempDir]] param as directory for keeping temp files.
+     * @param string|null $extension extension which file must have. Extension must be in local file system charset.
+     * @return string full path to temp file in local file system charset.
      * @throws InvalidConfigException if cannot create directory.
      */
     public static function getNewTempFilename($extension = null)

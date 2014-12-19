@@ -44,7 +44,7 @@ class CannotGetUrlEvent extends FileEvent
      * - `true`: returning an absolute base URL whose scheme is the same as that in [[\yii\web\UrlManager::hostInfo]].
      * - string: generating an absolute URL with the specified scheme (either `http` or `https`).
      */
-    public $scheme;
+    public $scheme = false;
 
     /**
      * This option may be used for setting result url in the event handlers.

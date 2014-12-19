@@ -121,7 +121,7 @@ class FileSystemStorage extends Storage
             Yii::warning("Cannot save file: $rootDir/$folder/$filename", __METHOD__);
             return false;
         }
-        if (!@chmod($rootDir/$folder/$fsFilename, $this->createFileMode)) {
+        if (!@chmod("$rootDir/$folder/$fsFilename", $this->createFileMode)) {
             Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $rootDir/$folder/$filename", __METHOD__);
         }
         return "$folder/$filename";
@@ -141,7 +141,7 @@ class FileSystemStorage extends Storage
             Yii::warning("Cannot copy file '$sourceFilePath' to '$rootDir/$folder/$filename'.", __METHOD__);
             return false;
         }
-        if (!@chmod($rootDir/$folder/$fsFilename, $this->createFileMode)) {
+        if (!@chmod("$rootDir/$folder/$fsFilename", $this->createFileMode)) {
             Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $rootDir/$folder/$filename", __METHOD__);
         }
         return "$folder/$filename";
@@ -158,7 +158,8 @@ class FileSystemStorage extends Storage
             return false;
         }
         if (!@chmod($fsFormatPath, $this->createFileMode)) {
-            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $fsFormatPath", __METHOD__);
+            $formatPath = FileSystemHelper::decodeFilename($fsFormatPath);
+            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $formatPath", __METHOD__);
         }
         return $data;
     }
@@ -174,7 +175,8 @@ class FileSystemStorage extends Storage
             return false;
         }
         if (!@chmod($fsFormatPath, $this->createFileMode)) {
-            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $fsFormatPath", __METHOD__);
+            $formatPath = FileSystemHelper::decodeFilename($fsFormatPath);
+            Yii::warning('Cannot change file permissions to 0'.(base_convert($this->createFileMode, 10, 8))." for file: $formatPath", __METHOD__);
         }
         return $data;
     }

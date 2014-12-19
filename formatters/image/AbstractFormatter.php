@@ -33,6 +33,17 @@ abstract class AbstractFormatter extends Formatter
     public $imagineConfig;
 
     /**
+     * @var string|null format of image, that must be generated.
+     * Null (default) meaning extension from `$readFilePath` will be used.
+     */
+    public $extension = null;
+
+    /**
+     * @var string|null the path (or alias) of a PHP file containing MIME type information.
+     */
+    public $mimeMagicFile = '@flexibuild/file/formatters/image/mimeTypes.php';
+
+    /**
      * Keeps old [[ImageHelper::getImagine()]] value.
      * @var \Imagine\Image\ImagineInterface
      */
@@ -63,15 +74,7 @@ abstract class AbstractFormatter extends Formatter
         $this->restoreImagine();
 
         if ($result instanceof ManipulatorInterface) {
-            $decodedReadFilePath = FileSystemHelper::decodeFilename($readFilePath);
-
-            if ($decodedReadFilePath === false) {
-                $extension = null;
-            } else {
-                $extension = FileSystemHelper::extension($decodedReadFilePath);
-                $extension = FileSystemHelper::encodeFilename($extension);
-                $extension = $extension === false ? null : $extension;
-            }
+            $extension = $this->parseFileExtension($readFilePath);
             $tempFile = FileSystemHelper::getNewTempFilename($extension);
 
             try {
@@ -82,6 +85,42 @@ abstract class AbstractFormatter extends Formatter
             $result = $tempFile;
         }
         return $result;
+    }
+
+    /**
+     * Parses extension from file path.
+     * It returns [[self::$extension]] is the last is set.
+     * Otherwise the method tries to detect file mime type.
+     * If mime type was not detected the method tries to parse file extension.
+     * @param string $readFilePath path to file which extension must be parsed.
+     * @return string|null parsed extension in local file system charset or null if extension is unknown.
+     */
+    protected function parseFileExtension($readFilePath)
+    {
+        if ($this->extension !== null) {
+            return $this->extension;
+        }
+
+        // try to determine mime type
+        $mimeType = FileSystemHelper::getMimeType($readFilePath, null, true);
+        if ($mimeType !== null) {
+            $extensions = FileSystemHelper::getExtensionsByMimeType($mimeType, $this->mimeMagicFile);
+            if (is_array($extensions) && count($extensions)) {
+                return reset($extensions);
+            }
+        }
+
+        // try to parse extension
+        $decodedReadFilePath = FileSystemHelper::decodeFilename($readFilePath);
+        if ($decodedReadFilePath === false) {
+            return null;
+        }
+        $extension = FileSystemHelper::extension($decodedReadFilePath);
+        if ($extension === null || $extension === '') {
+            return $extension;
+        }
+        $fsExtension = FileSystemHelper::encodeFilename($extension);
+        return $fsExtension === false ? null : $fsExtension;
     }
 
     /**

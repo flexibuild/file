@@ -139,11 +139,14 @@ class Context extends Component
         if ($storage === null) {
             $storage = $this->defaultStorage();
         }
-        if (!is_object($storage)) {
+        if (!$storage instanceof StorageInterface) {
             $storage = Yii::createObject($storage);
-        }
-        if ($storage instanceof Storage && $storage->context === null) {
-            $storage->context = $this;
+            if (!$storage instanceof StorageInterface) {
+                throw new InvalidConfigException("Context '$this->name' has invalid storage config. It must be an instance of " . __NAMESPACE__ . '\StorageInterface or a config for creating it.');
+            }
+            if ($storage instanceof Storage && $storage->context === null) {
+                $storage->context = $this;
+            }
         }
         return $this->_storage = $storage;
     }
