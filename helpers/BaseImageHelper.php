@@ -169,10 +169,14 @@ class BaseImageHelper extends BaseImage
      * - 'outbound' or [[self::THUMBNAIL_OUTBOUND]], the method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
      * 
+     * @param string $backgroundColor string color in RGB style. Default is 'FFF';
+     * This color will be used as background if image height or width less than needed.
+     * Used only for inset and outbound modes.
+     * 
      * @return ImageInterface
      * @throws InvalidParamException if `$mode` value is incorrect.
      */
-    public static function thumbnail($filename, $width = null, $height = null, $mode = self::THUMBNAIL_CROP_CENTER)
+    public static function thumbnail($filename, $width = null, $height = null, $mode = self::THUMBNAIL_CROP_CENTER, $backgroundColor = 'FFF')
     {
         if ($width === null && $height === null) {
             return static::getImagine()->open(Yii::getAlias($filename))->copy();
@@ -205,7 +209,7 @@ class BaseImageHelper extends BaseImage
             $img = $img->thumbnail($box, $mode);
 
             // create empty image to preserve aspect ratio of thumbnail
-            $thumb = static::getImagine()->create($box, new Color('FFF', 100));
+            $thumb = static::getImagine()->create($box, new Color($backgroundColor, 100));
 
             // calculate points
             $size = $img->getSize();

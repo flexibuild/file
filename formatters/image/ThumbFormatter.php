@@ -42,10 +42,17 @@ class ThumbFormatter extends AbstractFormatter
     public $mode = ImageHelper::THUMBNAIL_CROP_CENTER;
 
     /**
+     * @var string string color in RGB style. Default is 'FFF';
+     * This color will be used as background if image height or width less than needed.
+     * Used only for inset and outbound modes.
+     */
+    public $backgroundColor = 'FFF';
+
+    /**
      * @inheritdoc
      */
     protected function processFile($readFilePath)
     {
-        return ImageHelper::thumbnail($readFilePath, $this->width, $this->height, $this->mode);
+        return ImageHelper::thumbnail($readFilePath, $this->width, $this->height, $this->mode, $this->backgroundColor);
     }
 }
