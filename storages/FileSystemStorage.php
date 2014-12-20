@@ -55,6 +55,9 @@ class FileSystemStorage extends Storage
 
     /**
      * @var integer length for new generated subdirectories.
+     * If you want to change this property value, don't forget to change `$maxLength`
+     * value for keeping file data in your database. Now these params allows keep values
+     * in column typed as VARCHAR(255).
      */
     public $subdirsLength = 4;
 
@@ -104,8 +107,10 @@ class FileSystemStorage extends Storage
      * origin filename is bigger than this property storage will generate
      * new filename.
      * @var integer max length for filenames.
+     * Default value is 250 for keeping file data in databases in columns
+     * typed as VARCHAR(255). 5 chars reserved for subdirectory and one slash.
      */
-    public $maxLength = 255;
+    public $maxLength = 250;
 
     /**
      * @inheritdoc
