@@ -21,6 +21,11 @@ trait FormEnctypeTrait
     public $autoSetEnctype = true;
 
     /**
+     * @var boolean whether the widget may to use jQuery library. True by default.
+     */
+    public $useJQuery = true;
+
+    /**
      * Register scripts that changes form enctype to multipart/form-data.
      * @param string $inputId the id attribute of file input tag.
      */
@@ -29,9 +34,34 @@ trait FormEnctypeTrait
         if (!$this->autoSetEnctype) {
             return;
         }
+        $encodedInputId = Json::encode($inputId);
 
-        // @todo must be without jquery
-        $js = 'jQuery("#" + ' . Json::encode($inputId) . ').closest("form").attr("enctype", "multipart/form-data");';
-        $this->getView()->registerJs($js);
+        if ($this->useJQuery) {
+            $js = "jQuery('#' + $encodedInputId).closest('form').attr('enctype', 'multipart/form-data');";
+            $this->getView()->registerJs($js);
+            return;
+        }
+
+        $js = <<<JS
+            (function () {
+                var onReady = function () {
+                        var input = document.getElementById($encodedInputId), parentNode = input;
+                        while ((parentNode = parentNode.parentNode) && (parentNode.tagName.toUpperCase() !== 'FORM'));
+                        parentNode && parentNode.setAttribute && parentNode.setAttribute("enctype", "multipart/form-data");
+                    },
+                    completed = function () {
+                        document.removeEventListener && document.removeEventListener("DOMContentLoaded", completed, false);
+                        window.removeEventListener && window.removeEventListener("load", completed, false);
+                        onReady();
+                    };
+                if (document.readyState === "complete") {
+                    setTimeout(onReady);
+                } else {
+                    document.addEventListener && document.addEventListener("DOMContentLoaded", completed, false);
+                    window.addEventListener && window.addEventListener("load", completed, false);
+                }
+            })();
+JS;
+        $this->getView()->registerJs($js, \yii\web\View::POS_END);
     }
 }
