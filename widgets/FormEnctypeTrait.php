@@ -30,7 +30,7 @@ trait FormEnctypeTrait
             return;
         }
 
-        // !!! without jquery
+        // @todo must be without jquery
         $js = 'jQuery("#" + ' . Json::encode($inputId) . ').closest("form").attr("enctype", "multipart/form-data");';
         $this->getView()->registerJs($js);
     }

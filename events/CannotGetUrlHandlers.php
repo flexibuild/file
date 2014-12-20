@@ -11,7 +11,7 @@ use flexibuild\file\ModelBehavior;
 /**
  * Class that represents some helpful handlers for [[CannotGetUrlEvent]].
  * 
- * !!! examples
+ * @todo add examples
  * 
  * @author SeynovAM <senjovalexey@gmail.com>
  */

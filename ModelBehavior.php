@@ -20,7 +20,8 @@ use flexibuild\file\events\DataChangedEvent;
  * Behavior that must be attached to model for using flexibuild/file logic on models.
  * 
  * Example:
- * ```!!!
+ * @todo fill examples
+ * ```
  *  
  * ```
  *
