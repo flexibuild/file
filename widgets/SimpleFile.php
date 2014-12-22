@@ -130,6 +130,12 @@ class SimpleFile extends InputWidget
         $options['name'] = $name;
         $options['value'] = false;
         $options['id'] = $this->getInputId();
+
+        $accept = $this->_context()->inputAccept;
+        if ($accept !== null && !isset($options['accept'])) {
+            $options['accept'] = is_array($accept) ? implode(',', $accept) : $accept;
+        }
+
         $result .= Html::activeInput('file', $this->model, $this->attribute, $options);
 
         return $result;

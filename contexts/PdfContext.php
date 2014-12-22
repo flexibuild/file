@@ -14,6 +14,11 @@ class PdfContext extends Context
     /**
      * @inheritdoc
      */
+    public $inputAccept = 'application/pdf';
+
+    /**
+     * @inheritdoc
+     */
     protected function defaultValidators()
     {
         return [PdfValidator::className()];

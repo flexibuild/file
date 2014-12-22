@@ -14,6 +14,11 @@ class ImageContext extends Context
     /**
      * @inheritdoc
      */
+    public $inputAccept = 'image/*';
+
+    /**
+     * @inheritdoc
+     */
     protected function defaultValidators()
     {
         return [ImageValidator::className()];

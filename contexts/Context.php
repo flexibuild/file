@@ -109,6 +109,13 @@ class Context extends Component
     public $generateFormatsAfterSave = true;
 
     /**
+     * This property value will be used as accept attribute of file input.
+     * @var null|string|array. String comma separated or array of accepted mime types for file input.
+     * Null (default) meaning accept attribute will not be rendered.
+     */
+    public $inputAccept;
+
+    /**
      * @var mixed
      */
     private $_storage;
