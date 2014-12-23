@@ -321,8 +321,10 @@ class File extends FileComponent
     /**
      * Sets file storage data value.
      * @param string $data data that can be used for manipulating with file from context's storage.
+     * @param boolean $resetCalculated whether method must rese calculated properties if data was changed.
+     * Default is true.
      */
-    public function setData($data)
+    public function setData($data, $resetCalculated = true)
     {
         $oldData = $this->_data;
         $this->_data = $data;
@@ -331,7 +333,9 @@ class File extends FileComponent
             return;
         }
 
-        $this->resetCalculatedProperties();
+        if ($resetCalculated) {
+            $this->resetCalculatedProperties();
+        }
         if (!$this->hasEventHandlers(self::EVENT_DATA_CHANGED)) {
             return;
         }
@@ -353,7 +357,7 @@ class File extends FileComponent
     {
         $this->resetCalculatedProperties();
         $this->status = self::STATUS_EMPTY_FILE;
-        $this->setData(null);
+        $this->setData(null, false);
     }
 
     /**
@@ -365,7 +369,7 @@ class File extends FileComponent
     {
         $this->resetCalculatedProperties();
         $this->status = self::STATUS_INITIALIZED_FILE;
-        $this->setData($data);
+        $this->setData($data, false);
     }
 
     /**
@@ -390,7 +394,7 @@ class File extends FileComponent
         $this->resetCalculatedProperties();
         Yii::configure($this, $properties);
         $this->status = self::STATUS_UPLOADED_FILE;
-        $this->setData(null);
+        $this->setData(null, false);
     }
 
     /**
