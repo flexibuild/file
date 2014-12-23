@@ -956,23 +956,21 @@ class File extends FileComponent
      * Renders image tag with 'src' and 'alt' attributes.
      * Attribute 'src' will be filled by image url, 'alt' attribute will be filled by file name.
      * 
-     * @param array $options array of properties. You can override any tag attribute in it.
-     * You can specify the folliwing special params in `$options` too:
+     * @param string|null $format a name of format. Null meaning url for the source file must be used.
+     * @param boolean|string $scheme the URI scheme to use in the generated URL:
+     *
+     * - `false` (default): generating a relative URL.
+     * - `true`: generating an absolute base URL whose scheme is the same as that in [[\yii\web\UrlManager::hostInfo]].
+     * - string: generating an absolute URL with the specified scheme (either `http` or `https`).
      * 
-     * - 'format': string (default null), format param value that will be passed into `getUrl()`,
-     * - 'scheme': boolean (default false), scheme param value, that will be passed into `getUrl()`.
+     * @param array $options array of img attributes values.
      * 
      * @return string rendered img tag.
      */
-    public function img($options = [])
+    public function img($format = null, $scheme = false, $options = [])
     {
-        $format = isset($options['format']) ? $options['format'] : null;
-        $scheme = isset($options['scheme']) ? $options['scheme'] : false;
-        $src = isset($options['src']) ? $options['src'] : $this->getUrl($format, $scheme);
-        unset($options['format'], $options['scheme'], $options['src']);
-
+        $src = $this->getUrl($format, $scheme);
         $options['alt'] = isset($options['alt']) ? $options['alt'] : $this->getName();
-
         return Html::img($src, $options);
     }
 }
