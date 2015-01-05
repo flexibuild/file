@@ -46,18 +46,18 @@ class FromFormatter extends Formatter
             throw new InvalidConfigException('Param $from is required for ' . get_class($this) . '.');
         }
 
-        if (!$isFormatPath) {
-            $formatter = $this->context->getFormatter($this->from);
-            $readFilePath = $formatter->format($readFilePath);
-            $unlinkFilePath = $readFilePath;
-        }
-
-        $this->initFormatter();
-        $formatter = $this->formatter;
-        /* @var $formatter FormatterInterface */
-
         $this->_inProcess = true;
         try {
+            if (!$isFormatPath) {
+                $formatter = $this->context->getFormatter($this->from);
+                $readFilePath = $formatter->format($readFilePath);
+                $unlinkFilePath = $readFilePath;
+            }
+
+            $this->initFormatter();
+            $formatter = $this->formatter;
+            /* @var $formatter FormatterInterface */
+
             $result = $formatter->format($readFilePath);
         } catch (\Exception $ex) {
             $this->_inProcess = false;

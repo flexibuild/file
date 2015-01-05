@@ -318,9 +318,8 @@ trait ContextFormattersTrait
         }
 
         $formatter = $this->getFormatter($format);
-        if ($formatter instanceof FromFormatter) {
+        if ($formatter instanceof FromFormatter && ($tmpNameDependentFile !== null || $storage->fileExists($data, $formatter->from))) {
             if ($tmpNameDependentFile === null) {
-                $data = $this->generateFormat($data, $formatter->from, false);
                 $tmpNameDependentFile = $storage->getReadFilePath($data, $formatter->from);
             }
             $formattedTmpFile = $formatter->format($tmpNameDependentFile, true);
