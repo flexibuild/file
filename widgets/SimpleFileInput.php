@@ -13,7 +13,7 @@ use flexibuild\file\File;
  * 
  * @property-read string $inputId the id of file input.
  */
-class SimpleFile extends InputWidget
+class SimpleFileInput extends InputWidget
 {
     use FormEnctypeTrait;
 

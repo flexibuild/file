@@ -16,19 +16,19 @@ namespace flexibuild\file\widgets;
 trait FieldFileInputsTrait
 {
     /**
-     * Renders a file input as [[SimpleFile]] widget.
+     * Renders a file input as [[SimpleFileInput]] widget.
      * This method will generate the "name" and "value" tag attributes automatically for the model attribute
      * unless they are explicitly specified in `$options`.
      * @param array $options the tag options in terms of name-value pairs.
-     * These options will be passed as properties of [[SimpleFile]].
-     * @see SimpleFile
+     * These options will be passed as properties of [[SimpleFileInput]].
+     * @see SimpleFileInput
      */
     public function fileInput($options = [])
     {
         $options['model'] = $this->model;
         $options['attribute'] = $this->attribute;
         $options['view'] = $this->form->getView();
-        $this->parts['{input}'] = SimpleFile::widget($options);
+        $this->parts['{input}'] = SimpleFileInput::widget($options);
 
         return $this;
     }
