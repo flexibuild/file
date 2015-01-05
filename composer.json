@@ -17,7 +17,8 @@
         "flexibuild/component": "*"
     },
     "suggest": {
-        "yiisoft/yii2-imagine": "Allows working with image formatters"
+        "yiisoft/yii2-imagine": "Allows working with image formatters",
+        "npm-asset/blueimp-file-upload-node": "Allows to use flexibuild\\file\\widgets\\BlueimpJQueryUploader widget"
     },
     "autoload": {
         "psr-4": { "flexibuild\\file\\": "" }
