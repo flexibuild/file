@@ -18,10 +18,29 @@ class SimpleFile extends InputWidget
     use FormEnctypeTrait;
 
     /**
+     * Constants that may be used as `$previewType` property value.
+     */
+    const PREVIEW_TYPE_SPAN = 'span';
+    const PREVIEW_TYPE_LINK = 'link';
+    const PREVIEW_TYPE_IMAGE = 'image';
+
+    /**
+     * Type of file preview.
+     * @var string file preview type. May be one of the followings:
+     * 
+     * - 'span' or [[self::PREVIEW_TYPE_SPAN]], span tag with file name will be rendered,
+     * - 'link' or [[self::PREVIEW_TYPE_LINK]], link tag with url to the file will be rendered,
+     * - 'image' or [[self::PREVIEW_TYPE_IMAGE]], image will be rendered,
+     * - other string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered.
+     * 
+     */
+    public $previewType = 'link';
+
+    /**
      * @var string the name of format link which must be rendered when file has been already uploaded.
      * Null (default) meaning link to the source file will be rendered.
      */
-    public $linkFormat = null;
+    public $previewFormat = null;
 
     /**
      * @var string the scheme for link which must be rendered when file has been already uploaded:
@@ -31,27 +50,30 @@ class SimpleFile extends InputWidget
      * - string: generating an absolute URL with the specified scheme (either `http` or `https`).
      * 
      */
-    public $linkScheme = false;
+    public $previewScheme = false;
 
     /**
-     * @var array html options of link. One target '_blank' property by default.
+     * @var array of options that will be passed in `renderPreview*` method.
      */
-    public $linkOptions = [
-        'target' => '_blank',
-    ];
+    public $previewOptions = [];
+
+    /**
+     * @var string content that will be rendered if file with `previewFormat` will not exist.
+     */
+    public $emptyPreviewContent = '<em>In progress...</em>';
 
     /**
      * @var string template that used for rendering file input elements.
-     * You can use {link} and {input} placeholders there.
+     * You can use {preview} and {input} placeholders there.
      */
-    public $template = "{link}\n{input}";
+    public $template = "<br/>\n{preview}<br/>\n{input}";
 
     /**
-     * @var string template that used when file is empty (without link).
-     * Null meaning `$template` will be used with replacing {link} as ''.
+     * @var string template that used when file is empty (without preview).
+     * Null meaning `$template` will be used with replacing {preview} as ''.
      * You can use {input} placeholder only there.
      */
-    public $emptyFileTemplate;
+    public $emptyFileTemplate = "<br/>\n{input}";
 
     /**
      * @inheritdoc
@@ -77,37 +99,97 @@ class SimpleFile extends InputWidget
      */
     public function run()
     {
-        $link = $this->renderLink();
+        $preview = $this->renderPreview();
         $input = $this->renderInput();
         $this->registerChangeEnctypeScripts($this->getInputId());
 
-        if ($link === null && $this->emptyFileTemplate !== null) {
+        if ($preview === null && $this->emptyFileTemplate !== null) {
             echo strtr($this->emptyFileTemplate, [
                 '{input}' => $input,
             ]);
         } else {
             echo strtr($this->template, [
-                '{link}' => $link,
+                '{preview}' => $preview,
                 '{input}' => $input,
             ]);
         }
     }
 
     /**
-     * Renders link html, if file has been already uploaded.
-     * It renders link (tag 'a') if file with [[self::$linkFormat]] exists,
-     * otherwise the method tries to render tag 'span' with file name.
-     * @return string|null rendered link or span. Null meaning file has not been uploaded yet 
-     * or link does not exists.
+     * Renders preview html according to [[self::$previewType]] property, if file has been already uploaded.
+     * If file will not exist [[self::renderEmptyPreview()]] method will be called.
+     * 
+     * @return string|null string rendered preview or null. Null meaning file has not been uploaded yet.
+     * @throws InvalidConfigException if incorrect preview type.
      */
-    public function renderLink()
+    public function renderPreview()
     {
-        if ($this->_file()->exists($this->linkFormat)) {
-            return Html::a(Html::encode($this->_file()->getName()), $this->_file()->getUrl($this->linkFormat, $this->linkScheme), $this->linkOptions);
-        } elseif ($this->linkFormat !== null && $this->_file()->exists()) {
-            return Html::tag('span', Html::encode($this->_file()->getName()));
+        if ($this->_file()->exists($this->previewFormat)) {
+            $method = 'renderPreview' . ucfirst($this->previewType);
+            if ($this->hasMethod($method)) {
+                return $this->$method();
+            }
+            throw new InvalidConfigException("Invalid preview type '$this->previewType'. Method '$method' does not exist.");
+        }
+        if ($this->previewFormat !== null && $this->_file()->exists()) {
+            return $this->renderEmptyPreview();
         }
         return null;
+    }
+
+    /**
+     * Renders preview as span tag with file name as tag content.
+     * @return string rendered span tag 
+     */
+    protected function renderPreviewSpan()
+    {
+        $tag = 'span';
+        $options = $this->previewOptions;
+        if (isset($options['tag'])) {
+            $tag = $options['tag'];
+            unset($options['tag']);
+        }
+        return Html::tag($tag, Html::encode($this->_file()->getName()), $this->previewOptions);
+    }
+
+    /**
+     * Renders preview as link to the file.
+     * [[self::$previewFormat]] and [[self::$previewScheme]] will be used for generating url.
+     * [[self::$previewOptions]] will be used as tag 'a' html options. Attribute 'target' will be '_blank' by default.
+     * @return string rendered link html tag.
+     */
+    protected function renderPreviewLink()
+    {
+        $name = $this->_file()->getName();
+        $link = $this->_file()->getUrl($this->previewFormat, $this->previewScheme);
+        $options = array_replace([
+            'target' => '_blank',
+        ], $this->previewOptions);
+        return Html::a(Html::encode($name), $link, $options);
+    }
+
+    /**
+     * Renders preview as image.
+     * [[self::$previewFormat]] and [[self::$previewScheme]] will be used for generating url.
+     * [[self::$previewOptions]] will be used as tag 'img' html options.
+     * @return string rendered img html tag.
+     */
+    protected function renderPreviewImage()
+    {
+        $link = $this->_file()->getUrl($this->previewFormat, $this->previewScheme);
+        $options = array_replace([
+            'alt' => $this->_file()->getName(),
+        ], $this->previewOptions);
+        return Html::img($link, $options);
+    }
+
+    /**
+     * Renders content that may be used if file with [[self::$previewFormat]] does not exists.
+     * @return string rendered empty preview html content.
+     */
+    protected function renderEmptyPreview()
+    {
+        return $this->emptyPreviewContent;
     }
 
     /**
