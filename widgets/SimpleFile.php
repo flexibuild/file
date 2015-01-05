@@ -23,6 +23,7 @@ class SimpleFile extends InputWidget
     const PREVIEW_TYPE_SPAN = 'span';
     const PREVIEW_TYPE_LINK = 'link';
     const PREVIEW_TYPE_IMAGE = 'image';
+    const PREVIEW_TYPE_IMAGE_LINK = 'imageLink';
 
     /**
      * Type of file preview.
@@ -31,6 +32,7 @@ class SimpleFile extends InputWidget
      * - 'span' or [[self::PREVIEW_TYPE_SPAN]], span tag with file name will be rendered,
      * - 'link' or [[self::PREVIEW_TYPE_LINK]], link tag with url to the file will be rendered,
      * - 'image' or [[self::PREVIEW_TYPE_IMAGE]], image will be rendered,
+     * - 'imageLink' or [[self::PREVIEW_TYPE_IMAGE_LINK]], image as link to source file will be rendered,
      * - other string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered.
      * 
      */
@@ -164,6 +166,7 @@ class SimpleFile extends InputWidget
         $link = $this->_file()->getUrl($this->previewFormat, $this->previewScheme);
         $options = array_replace([
             'target' => '_blank',
+            'title' => $name,
         ], $this->previewOptions);
         return Html::a(Html::encode($name), $link, $options);
     }
@@ -177,10 +180,45 @@ class SimpleFile extends InputWidget
     protected function renderPreviewImage()
     {
         $link = $this->_file()->getUrl($this->previewFormat, $this->previewScheme);
+        $name = $this->_file()->getName();
+
         $options = array_replace([
-            'alt' => $this->_file()->getName(),
+            'alt' => $name,
+            'title' => $name,
         ], $this->previewOptions);
+
         return Html::img($link, $options);
+    }
+
+    /**
+     * Renders preview as image, which will be a link to source file.
+     * [[self::$previewFormat]] and [[self::$previewScheme]] will be used for generating url.
+     * 
+     * [[self::$previewOptions]] will be used as tag 'img' html options.
+     * Special option 'linkOptions' will be used as html options of tag 'a'.
+     * By default tag 'a' will be rendered with 'target' == '_blank' option.
+     * 
+     * @return string rendered img-link html tag.
+     */
+    protected function renderPreviewImageLink()
+    {
+        $name = $this->_file()->getName();
+        $imgUrl = $this->_file()->getUrl($this->previewFormat, $this->previewScheme);
+        $linkUrl = $this->_file()->getUrl(null, $this->previewScheme);
+
+        $options = array_replace([
+            'alt' => $name,
+            'title' => $name,
+        ], $this->previewOptions);
+
+        $linkOptions = array_replace([
+            'target' => '_blank',
+            'title' => $name,
+        ], isset($options['linkOptions']) ? $options['linkOptions'] : []);
+        unset($options['linkOptions']);
+
+        $imgContent = Html::img($imgUrl, $options);
+        return Html::a($imgContent, $linkUrl, $linkOptions);
     }
 
     /**
