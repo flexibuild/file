@@ -14,11 +14,9 @@
     "minimum-stability": "dev",
     "require": {
         "yiisoft/yii2": "*",
+        "yiisoft/yii2-imagine": "*",
+        "yiisoft/yii2-jui": "*",
         "flexibuild/component": "*"
-    },
-    "suggest": {
-        "yiisoft/yii2-imagine": "Allows working with image formatters",
-        "npm-asset/blueimp-file-upload-node": "Allows to use flexibuild\\file\\widgets\\BlueimpJQueryUploader widget"
     },
     "autoload": {
         "psr-4": { "flexibuild\\file\\": "" }
