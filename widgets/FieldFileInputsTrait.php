@@ -32,4 +32,6 @@ trait FieldFileInputsTrait
 
         return $this;
     }
+
+    // @todo method for blueimp uploader
 }

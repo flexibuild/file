@@ -313,16 +313,13 @@ class BaseImageHelper extends BaseImage
 
         $imgSize = $img->getSize();
         $watermarkSize = $watermark->getSize();
-        if ($watermarkSize->getWidth() > $imgSize->getWidth()) {
-            $watermarkSize->widen($imgSize->getWidth());
-            $resize = true;
-        }
-        if ($watermarkSize->getHeight() > $imgSize->getHeight()) {
-            $watermarkSize->heighten($imgSize->getHeight());
-            $resize = true;
-        }
-        if (isset($resize)) {
-            $watermark->resize($watermarkSize);
+        if ($watermarkSize->getWidth() > $imgSize->getWidth() || $watermarkSize->getHeight() > $imgSize->getHeight()) {
+            $newWatermarkSize = $watermarkSize->widen($imgSize->getWidth());
+            if ($newWatermarkSize->getHeight() > $imgSize->getHeight()) {
+                $newWatermarkSize = $watermarkSize->heighten($imgSize->getHeight());
+            }
+            $watermarkSize = $newWatermarkSize;
+            $watermark = $watermark->resize($watermarkSize);
         }
 
         $array = [

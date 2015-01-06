@@ -16,6 +16,10 @@ use flexibuild\file\File;
 class SimpleFileInput extends InputWidget
 {
     use FormEnctypeTrait;
+    /**
+     * Const that will used as suffix for id of hidden input by default.
+     */
+    const ID_HIDDEN_INPUT_SUFFIX = '-hidden';
 
     /**
      * Constants that may be used as `$previewType` property value.
@@ -36,7 +40,7 @@ class SimpleFileInput extends InputWidget
      * - other string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered.
      * 
      */
-    public $previewType = 'link';
+    public $previewType = self::PREVIEW_TYPE_LINK;
 
     /**
      * @var string the name of format link which must be rendered when file has been already uploaded.
@@ -245,6 +249,7 @@ class SimpleFileInput extends InputWidget
             'name' => $name,
             'value' => $this->_context()->postParamUploadPrefix . $name .
                 $this->_context()->postParamStoragePrefix . $this->_file()->getData(),
+            'id' => $this->options['id'] . static::ID_HIDDEN_INPUT_SUFFIX,
         ]);
 
         $options['name'] = $name;
