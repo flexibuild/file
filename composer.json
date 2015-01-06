@@ -16,6 +16,7 @@
         "yiisoft/yii2": "*",
         "yiisoft/yii2-imagine": "*",
         "yiisoft/yii2-jui": "*",
+        "bower-asset/blueimp-file-upload": "*",
         "flexibuild/component": "*"
     },
     "autoload": {
