@@ -21,6 +21,7 @@ trait FieldFileInputsTrait
      * unless they are explicitly specified in `$options`.
      * @param array $options the tag options in terms of name-value pairs.
      * These options will be passed as properties of [[SimpleFileInput]].
+     * @return static $this
      * @see SimpleFileInput
      */
     public function fileInput($options = [])
@@ -33,5 +34,22 @@ trait FieldFileInputsTrait
         return $this;
     }
 
-    // @todo method for blueimp uploader
+    /**
+     * Renders a file input as [[BlueimpJQueryUploader]] widget.
+     * This method will generate the "name" and "value" tag attributes automatically for the model attribute
+     * unless they are explicitly specified in `$options`.
+     * @param array $options the tag options in terms of name-value pairs.
+     * These options will be passed as properties of [[BlueimpJQueryUploader]].
+     * @return static $this
+     * @see BlueimpJQueryUploader
+     */
+    public function fileBlueimpUploader($options = [])
+    {
+        $options['model'] = $this->model;
+        $options['attribute'] = $this->attribute;
+        $options['view'] = $this->form->getView();
+        $this->parts['{input}'] = BlueimpJQueryUploader::widget($options);
+
+        return $this;
+    }
 }

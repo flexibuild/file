@@ -37,6 +37,11 @@ class BlueimpJQueryUploader extends InputWidget
      */
     const ID_PREVIEW_CONTAINER_SUFFIX = '-preview-container';
 
+    /**
+     * Const that will be used as suffix for id of progress bar container.
+     */
+    const ID_PROGRESS_SUFFIX = '-progress';
+
 
     /**
      * Predefined types for preview.
@@ -63,6 +68,7 @@ class BlueimpJQueryUploader extends InputWidget
 
     /**
      * @var string the tag which will be used for the widget container.
+     * You can change container options by changing [[self::$options]] property.
      */
     public $containerTag = 'div';
 
@@ -86,16 +92,16 @@ class BlueimpJQueryUploader extends InputWidget
      * 
      */
     public $template = "{preview}\n{progress}\n{input}";
-    //  @todo progress bar
 
     /**
-     * Used only if [[self::$previewPath]] is null.
+     * Used only if [[self::$previewViewPath]] is null.
      * @var string type of preview, can be one of the followings:
      * 
      * - span - file name in span tag will be rendered,
      * - link - file name as link to source file will be rendered,
      * - image - image will be rendered,
      * - imageLink - image as link to source file will be rendered
+     * - string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered,
      * 
      */
     public $previewType = self::PREVIEW_TYPE_LINK;
@@ -106,10 +112,11 @@ class BlueimpJQueryUploader extends InputWidget
     public $previewData = [];
 
     /**
-     * @var the path or Yii alias to preview view template.
+     * @var string the path or Yii alias to preview view template.
      * If this property is set than [[self::$previewType]] param will be ignored.
+     * [[self::$previewData]] will be passed in the view as variables.
      */
-    public $previewPath;
+    public $previewViewPath;
 
     /**
      * @var string the tag in which will be included preview content.
@@ -125,6 +132,16 @@ class BlueimpJQueryUploader extends InputWidget
      * @var callable the callback that will be used for converting File object to array.
      */
     public $convertCallback = 'flexibuild\file\web\UploadAction::convertFileToArray';
+
+    /**
+     * @var string the tag for progress bar container.
+     */
+    public $progressBarTag = 'div';
+
+    /**
+     * @var array html options of progress bar container.
+     */
+    public $progressBarOptions = [];
 
     /**
      * @inheritdoc
@@ -153,6 +170,9 @@ class BlueimpJQueryUploader extends InputWidget
         if (!isset($this->previewContainerOptions['id'])) {
             $this->previewContainerOptions['id'] = $this->options['id'] . static::ID_PREVIEW_CONTAINER_SUFFIX;
         }
+        if (!isset($this->progressBarOptions['id'])) {
+            $this->progressBarOptions['id'] = $this->options['id'] . static::ID_PROGRESS_SUFFIX;
+        }
 
         $this->initClientOptions();
     }
@@ -180,44 +200,90 @@ class BlueimpJQueryUploader extends InputWidget
         }
 
         if (!isset($this->clientOptions['formData'])) {
-            $this->clientOptions['formData'] = new JsExpression('function (form) {
-                var $form = jQuery(form),
-                    fileInputId = ' . Json::encode($this->fileInputOptions['id']) . ',
-                    hiddenInputId = ' . Json::encode($this->hiddenInputOptions['id']) . ';
-                return $form.find("#" + hiddenInputId + ", #" + fileInputId).serializeArray();
-            }');
+            $this->clientOptions['formData'] = new JsExpression($this->jsFormDataFunction());
         }
 
         if (!isset($this->clientEvents['done'])) {
-            $this->clientEvents['done'] = 'function (e, data) {
+            $this->clientEvents['done'] = $this->jsOnDoneFunction();
+        }
+        if (!isset($this->clientEvents['fail'])) {
+            $this->clientEvents['fail'] = $this->jsOnFailFunction();
+        }
+    }
+
+    /**
+     * Returns JS function for 'formData' uploader option.
+     * @return string function body for 'formData' option.
+     */
+    protected function jsFormDataFunction()
+    {
+        return 'function (form) {
+            var $form = jQuery(form),
+                fileInputId = ' . Json::encode($this->fileInputOptions['id']) . ',
+                hiddenInputId = ' . Json::encode($this->hiddenInputOptions['id']) . ';
+            return $form.find("#" + hiddenInputId + ", #" + fileInputId).serializeArray();
+        }';
+    }
+
+    /**
+     * Returns JS function - handler on 'done' uploader event.
+     * @return string function body for using as handler on 'done' uploader event.
+     */
+    protected function jsOnDoneFunction()
+    {
+        return '(function () {
+            var $hiddenInput = jQuery("#" + ' . Json::encode($this->hiddenInputOptions['id']) . '),
+                prefix = ' . Json::encode($this->_context()->postParamStoragePrefix) . ',
+                templateId = ' . Json::encode($this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX) . ',
+                templateCompiled = false,
+                $container = jQuery("#" + ' . Json::encode($this->previewContainerOptions['id']) . ');
+
+            if (jQuery("#" + templateId).length) {
+                templateCompiled = window.tmpl(templateId);
+            }
+
+            return function (e, data) {
                 if (!data.result.success) {
                     alert(data.result.message);
                     return;
                 }
 
                 var file = data.result.file,
-                    value = file.value,
-
-                    hiddenInputId = ' . Json::encode($this->hiddenInputOptions['id']) . ',
-                    $hiddenInput = jQuery("#" + hiddenInputId),
-                    prefix = ' . Json::encode($this->_context()->postParamStoragePrefix) . ',
-
-                    templateId = ' . Json::encode($this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX) . ',
-                    containerId = ' . Json::encode($this->previewContainerOptions['id']) . ',
-                    $container = jQuery("#" + containerId);
-
+                    value = file.value;
                 $hiddenInput.val(prefix + value);
-                if ($container.length && jQuery("#" + templateId).length) {
-                    $container.html(window.tmpl(templateId, file));
+                if ($container.length && templateCompiled) {
+                    $container.html(templateCompiled(file));
                 }
-            }';
-        }
-        if (!isset($this->clientEvents['fail'])) {
-            $this->clientEvents['fail'] = 'function (e, data) {
-                alert("Internal server error");
-                window.console && console.error && console.error("Upload error: ", data);
-            }';
-        }
+            };
+        })()';
+    }
+
+    /**
+     * Returns JS function - handler on 'fail' uploader event.
+     * @return string function body for using as handler on 'fail' uploader event.
+     */
+    protected function jsOnFailFunction()
+    {
+        return 'function (e, data) {
+            alert("Internal server error");
+            window.console && console.error && console.error("Upload error: ", data);
+        }';
+    }
+
+    /**
+     * Returns JS function - handler on 'progressall' uploader event.
+     * @return string function body for using as handler on 'progressall' uploader event.
+     */
+    protected function jsOnProgressAllFunction()
+    {
+        $id = Json::encode($this->progressBarOptions['id']);
+        return "(function () {
+            var \$progressBar = jQuery('#' + $id);
+            return function (e, data) {
+                var percent = Math.round(data.loaded / data.total * 100);
+                \$progressBar.css('width', percent + '%');
+            };
+        })()";
     }
 
     /**
@@ -228,10 +294,17 @@ class BlueimpJQueryUploader extends InputWidget
         $preview = $this->renderPreview();
         $input = $this->renderInput();
 
+        if (mb_strpos($this->template, '{progress}', 0, \Yii::$app->charset) !== false) {
+            $progress = $this->renderProgressBar();
+        } else {
+            $progress = '';
+        }
+
         $this->registerWidget();
         return Html::tag($this->containerTag, strtr($this->template, [
             '{preview}' => $preview,
             '{input}' => $input,
+            '{progress}' => $progress,
         ]), $this->options);
     }
 
@@ -243,11 +316,14 @@ class BlueimpJQueryUploader extends InputWidget
     {
         $data = $this->previewData;
 
-        if ($this->previewPath !== null) {
-            $result = $this->render($this->previewPath, $data);
+        if ($this->previewViewPath !== null) {
+            $result = $this->render($this->previewViewPath, $data);
         } else {
-            $path = '@flexibuild/file/widgets/views/blueimp-jquery-uploader';
-            $result = $this->render("$path/$this->previewType", $data);
+            $method = 'renderPreview' . ucfirst($this->previewType);
+            if (!$this->hasMethod($method)) {
+                throw new \yii\base\InvalidConfigException("Incorrect preview type '$this->previewType'. Method $method does not exist.");
+            }
+            $result = $this->$method($data);
         }
 
         $template = Html::script($result, [
@@ -255,6 +331,96 @@ class BlueimpJQueryUploader extends InputWidget
             'id' => $this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX,
         ]);
         return Html::tag($this->previewContainerTag, '', $this->previewContainerOptions) . $template;
+    }
+
+    /**
+     * Renders preview as file name in span tag.
+     * @param array $options array of span html options.
+     * @return string rendered html content.
+     */
+    protected function renderPreviewSpan($options = [])
+    {
+        return Html::tag('span', '{%= o.name %}', $options);
+    }
+
+    /**
+     * Renders preview as link to source file will be rendered,
+     * @param array $options array of options. Optional options is:
+     * 
+     * - string 'format' - link to it format will be rendered,
+     * - array 'htmlOptions' - array of link html options
+     * 
+     * @return string rendered html content.
+     */
+    protected function renderPreviewLink($options = [])
+    {
+        $htmlOptions = array_replace([
+            'title' => '{%= o.name %}',
+            'target' => '_blank',
+        ], isset($options['htmlOptions']) ? $options['htmlOptions'] : []);
+
+        $urlTemplate = isset($options['format'])
+            ? '{%= o.formats.' . $options['format'] . ' %}'
+            : '{%= o.url %}';
+
+        return Html::a('{%= o.name %}', $urlTemplate, $htmlOptions);
+    }
+
+    /**
+     * Renders preview as image,
+     * @param array $options array of options. Optional options is:
+     * 
+     * - string 'format' - link to it format will be used as img src,
+     * - array 'htmlOptions' - array of img html options
+     * 
+     * @return string rendered html content.
+     */
+    protected function renderPreviewImage($options = [])
+    {
+        $htmlOptions = array_replace([
+            'title' => '{%= o.name %}',
+            'alt' => '{%= o.name %}',
+        ], isset($options['htmlOptions']) ? $options['htmlOptions'] : []);
+
+        $urlTemplate = isset($options['format'])
+            ? '{%= o.formats.' . $options['format'] . ' %}'
+            : '{%= o.url %}';
+
+        return Html::img($urlTemplate, $htmlOptions);
+    }
+
+    /**
+     * Renders preview as image, image is link to source file.
+     * @param array $options array of options. Optional options is:
+     * 
+     * - string 'format' - link to it format will be used as img src,
+     * - array 'imgOptions' - array of img html options
+     * - array 'linkOptions' - array of link html options
+     * 
+     * @return string rendered html content.
+     */
+    protected function renderPreviewImageLink($options = [])
+    {
+        $imgOptions = array_replace([
+            'title' => '{%= o.name %}',
+            'alt' => '{%= o.name %}',
+        ], isset($options['imgOptions']) ? $options['imgOptions'] : []);
+
+        $linkOptions = array_replace([
+            'title' => '{%= o.name %}',
+            'target' => '_blank',
+            'href' => '{%= o.url %}',
+        ], isset($options['linkOptions']) ? $options['linkOptions'] : []);
+
+        $urlTemplate = isset($options['format'])
+            ? '{%= o.formats.' . $options['format'] . ' %}'
+            : '{%= o.url %}';
+
+        $result = Html::beginTag('a', $linkOptions);
+        $result .= Html::img($urlTemplate, $imgOptions);
+        $result .= Html::endTag('a');
+
+        return $result;
     }
 
     /**
@@ -307,6 +473,21 @@ class BlueimpJQueryUploader extends InputWidget
     }
 
     /**
+     * Renders progress bar and registers process JS handler.
+     * @return string progress bar content.
+     */
+    public function renderProgressBar()
+    {
+        $result = Html::tag($this->progressBarTag, '', $this->progressBarOptions);
+
+        if (!isset($this->clientEvents['progressall'])) {
+            $this->clientEvents['progressall'] = $this->jsOnProgressAllFunction();
+        }
+
+        return $result;
+    }
+
+    /**
      * Registers client scripts.
      * @inheritdoc
      */
@@ -326,17 +507,15 @@ class BlueimpJQueryUploader extends InputWidget
             $fileData = Json::encode(call_user_func($this->convertCallback, $this->_file(), $this->scheme));
             $previewTemplateId = Json::encode($this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX);
             $previewContainerId = Json::encode($this->previewContainerOptions['id']);
-            $this->getView()->registerJs("
-                (function () {
-                    var file = $fileData,
-                        templateId = $previewTemplateId,
-                        containerId = $previewContainerId,
-                        \$container = jQuery('#' + containerId);
-                    if (\$container.length && jQuery('#' + templateId).length) {
-                        \$container.html(window.tmpl(templateId, file));
-                    }
-                })();
-            ");
+            $this->getView()->registerJs("(function () {
+                var file = $fileData,
+                    templateId = $previewTemplateId,
+                    containerId = $previewContainerId,
+                    \$container = jQuery('#' + containerId);
+                if (\$container.length && jQuery('#' + templateId).length) {
+                    \$container.html(window.tmpl(templateId, file));
+                }
+            })();");
         }
     }
 

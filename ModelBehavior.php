@@ -20,9 +20,19 @@ use flexibuild\file\events\DataChangedEvent;
  * Behavior that must be attached to model for using flexibuild/file logic on models.
  * 
  * Example:
- * @todo fill examples
- * ```
- *  
+ * 
+ * ```php
+ *      public function behaviors()
+ *      {
+ *          return [
+ *              'fileModelBehavior' => [
+ *                 'class' => \flexibuild\file\ModelBehavior::className(),
+ *                 'attributes' => [
+ *                     'avatar' => 'product', // will add 'avatarFile' property for 'product' context
+ *                 ],
+ *             ],
+ *         ];
+ *     }
  * ```
  *
  * @author SeynovAM <sejnovalexey@gmail.com>

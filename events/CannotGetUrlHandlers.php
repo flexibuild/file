@@ -11,7 +11,17 @@ use flexibuild\file\ModelBehavior;
 /**
  * Class that represents some helpful handlers for [[CannotGetUrlEvent]].
  * 
- * @todo add examples
+ * ```php
+ *  'contexts' => [
+ *      'product' => [ // product context params
+ *          // ...
+ *          'fileConfig' => [
+ *              'on cannotGetUrl' => 'flexibuild\file\events\CannotGetUrlHandlers::formatFileOnFly',
+ *          ],
+ *          // ...
+ *      ],
+ *  ],
+ * ```
  * 
  * @author SeynovAM <senjovalexey@gmail.com>
  */

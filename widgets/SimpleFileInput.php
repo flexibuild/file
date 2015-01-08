@@ -30,17 +30,29 @@ class SimpleFileInput extends InputWidget
     const PREVIEW_TYPE_IMAGE_LINK = 'imageLink';
 
     /**
-     * Type of file preview.
+     * Type of file preview. Used only if [[self::$previewViewPath]] is null.
      * @var string file preview type. May be one of the followings:
      * 
      * - 'span' or [[self::PREVIEW_TYPE_SPAN]], span tag with file name will be rendered,
      * - 'link' or [[self::PREVIEW_TYPE_LINK]], link tag with url to the file will be rendered,
      * - 'image' or [[self::PREVIEW_TYPE_IMAGE]], image will be rendered,
      * - 'imageLink' or [[self::PREVIEW_TYPE_IMAGE_LINK]], image as link to source file will be rendered,
-     * - other string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered.
+     * - string, which means the method 'renderPreview{OtherString}' will be called, result of which will be rendered,
      * 
      */
     public $previewType = self::PREVIEW_TYPE_LINK;
+
+    /**
+     * @var string the path or Yii alias to preview view template.
+     * If this property is set than [[self::$previewType]] param will be ignored.
+     * The followings properties will be passed in view as variables:
+     * 
+     * - string|null $format, [[self::$previewFormat]] will be passed there,
+     * - boolean|string $scheme, [[self::$previewScheme]] will be passed there,
+     * - array $options, [[self::$previewOptions]] will be passed there
+     * 
+     */
+    public $previewViewPath;
 
     /**
      * @var string the name of format link which must be rendered when file has been already uploaded.
@@ -131,15 +143,26 @@ class SimpleFileInput extends InputWidget
     public function renderPreview()
     {
         if ($this->_file()->exists($this->previewFormat)) {
+            if ($this->previewViewPath !== null) {
+                return $this->render($this->previewViewPath, [
+                    'format' => $this->previewFormat,
+                    'scheme' => $this->previewScheme,
+                    'options' => $this->previewOptions,
+                ]);
+            }
+
             $method = 'renderPreview' . ucfirst($this->previewType);
             if ($this->hasMethod($method)) {
                 return $this->$method();
             }
+
             throw new InvalidConfigException("Invalid preview type '$this->previewType'. Method '$method' does not exist.");
         }
+
         if ($this->previewFormat !== null && $this->_file()->exists()) {
             return $this->renderEmptyPreview();
         }
+
         return null;
     }
 
