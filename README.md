@@ -3,8 +3,24 @@ php-safe
 
 Yii2 extension that allows to work with files as with simple properties.
 
-Usage
------
+Advantages
+----------
+
+1. Usage of files like any other simple property.
+
+2. Storages logic is separated and can be change without changing your controllers or views.
+
+3. Formatters logic is separated. For each of file you can define formatters.
+This formatters allow to generate and use formatted versions of file.
+Added useful watermakr, thumb, grayscale and others formatters for images.
+
+4. Useful getting url of source file or formatted version of file.
+
+5. File storage allows to save origin file names.
+
+6. Useful config for default file url (for dummy urls).
+
+7. You can use ajax file uploader with minimal application config.
 
 
 Installation
@@ -71,6 +87,8 @@ For example you have property $avatar in you model.
             'fileModelBehavior' => [
                 'class' => \flexibuild\file\ModelBehavior::className(),
                 'attributes' => [
+                    // add 'avatarFile' attribute that will be linked with 'avatar' property
+                    // and use 'contact' context
                     'avatar' => 'contact',
                 ],
             ],
@@ -110,6 +128,12 @@ you must to add some rule or edit your scenarios() method. Example with 'rules()
 You can use ActiveFormEx or ActiveFieldEx (or FieldFileInputsTrait) for greater convenience.
 
 ```
+    <?php
+        use flexibuild\file\widgets\bootstrap\ActiveFormEx;
+        // or flexibuild\file\widgets\ActiveFormEx without using bootstrap
+    ?>
+    <!-- ... -->
+
     <?php $form = ActiveFormEx::begin([/* ... */]); ?>
     <!-- ... -->
 
