@@ -1,7 +1,7 @@
 php-safe
 ========
 
-Yii2 extension that allows to work with files as with simple properties (WIP).
+Yii2 extension that allows to work with files as with simple properties.
 
 Usage
 -----
