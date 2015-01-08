@@ -155,3 +155,15 @@ OR
         'url' => ['file/uploadContact'],
     ]) ?>
 ```
+
+6. You can use your new file property not only in form. In other your views you can:
+
+```
+    <a href="<?= Html::encode($model->avatarFile) ?>"><?= Html::encode($model->name) ?></a>
+    <a href="<?= Html::encode($model->avatarFile->asMini) ?>"><?= Html::encode($model->name) ?></a>
+    <a href="<?= Html::encode($model->avatarFile->getUrl('small', 'https') ?>"><?= Html::encode($model->name) ?></a>
+    <p>size: <?= $model->avatarFile->size ?></p>
+```
+
+See \flexibuild\file\File object for more info.
+
