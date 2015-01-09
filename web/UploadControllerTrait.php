@@ -3,6 +3,7 @@
 namespace flexibuild\file\web;
 
 use yii\helpers\ArrayHelper;
+use yii\helpers\Inflector;
 
 /**
  * UploadControllerTrait keeps logic of [[UploadController]].
@@ -14,7 +15,7 @@ trait UploadControllerTrait
 {
     /**
      * @var array of context names. 
-     * For each name the controller will declare action 'upload{ContextName}'
+     * For each name the controller will declare action 'upload-{context-name}'
      * that can be used for uploading files in this context.
      * 
      * You can defaine any action params for each of contexts.
@@ -58,7 +59,7 @@ trait UploadControllerTrait
                 $params = is_array($value) ? $value : ['class' => $value];
             }
 
-            $actionName = 'upload' . ucfirst($contextName);
+            $actionName = Inflector::camel2id('upload' . ucfirst($contextName));
             $result[$actionName] = ArrayHelper::merge($this->defaultActionParams, [
                 'class' => $this->defaultActionClass,
                 'context' => $contextName,

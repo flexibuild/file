@@ -8,7 +8,7 @@ use yii\web\Controller;
  * UploadController can be used for process uploaded files.
  * It declares actions [[UploadAction]] for all declared contexts.
  * 
- * For each name the controller will declare action 'upload{ContextName}'
+ * For each name the controller will declare action 'upload-{context-name}'
  * that can be used for uploading files in this context.
  * 
  * You can defaine any action params for each of contexts.

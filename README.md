@@ -168,7 +168,7 @@ After that instead of SimpleFileInput you can use ajax jquery uploader:
     <?= \flexibuild\file\widgets\BlueimpJQueryUploader::widget([
         'model' => $model,
         'attribute' => 'avatarFile',
-        'url' => ['file/uploadContact'],
+        'url' => ['file/upload-contact'],
     ]) ?>
 ```
 
@@ -176,7 +176,7 @@ OR
 
 ```
     <?= $form->field($model, 'avatarFile')->fileBlueimpUploader([
-        'url' => ['file/uploadContact'],
+        'url' => ['file/upload-contact'],
     ]) ?>
 ```
 
