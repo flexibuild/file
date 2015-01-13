@@ -5,12 +5,10 @@ namespace flexibuild\file\widgets;
 use yii\helpers\Html;
 use yii\helpers\Url;
 use yii\helpers\Json;
-use yii\web\JsExpression;
 use yii\jui\InputWidget;
 
 use flexibuild\file\File;
-use flexibuild\file\widgets\assets\BlueimpFileUploadAsset;
-use flexibuild\file\widgets\assets\BlueimpTmplAsset;
+use flexibuild\file\widgets\assets\BlueimpWidgetAsset;
 
 /**
  * Widget that will be rendered as bluimp jQuery ajax file uploader.
@@ -36,6 +34,11 @@ class BlueimpJQueryUploader extends InputWidget
      * Const that will be used as suffix for id of preview container tag.
      */
     const ID_PREVIEW_CONTAINER_SUFFIX = '-preview-container';
+
+    /**
+     * Const that will be used as suffix for id of remove button container tag.
+     */
+    const ID_REMOVE_CONTAINER_SUFFIX = '-remove-container';
 
     /**
      * Const that will be used as suffix for id of progress bar container.
@@ -88,10 +91,11 @@ class BlueimpJQueryUploader extends InputWidget
      * 
      * - {input} - placeholder for hidden & file inputs,
      * - {progress} - placeholder for progress bar,
+     * - {remove} - remove already uploaded file,
      * - {preview} - placeholder for preview
      * 
      */
-    public $template = "{preview}\n{progress}\n{input}";
+    public $template = "{preview}\n{remove}\n{progress}\n{input}";
 
     /**
      * Used only if [[self::$previewViewPath]] is null.
@@ -144,6 +148,36 @@ class BlueimpJQueryUploader extends InputWidget
     public $progressBarOptions = [];
 
     /**
+     * @var string the tag of remove button container. The tag 'a' by default.
+     * If this property is null, remove button will not be rendered.
+     */
+    public $removeContainerTag = 'a';
+
+    /**
+     * @var array of remove button container html options. The 'href' = '#' (for tag 'a') by default.
+     */
+    public $removeContainerOptions = ['href' => '#'];
+
+    /**
+     * @var string the content of remove button container. This content will NOT be encoded.
+     */
+    public $removeContainerContent = 'x';
+
+    /**
+     * @var mixed container for upload errors, may be one of the followings:
+     * 
+     * - null (default), means the widget will try to auto detect this container.
+     * It will to see if form has yii.activeForm jQuery plugin, than to use error value from it attribute.
+     * If error container is not detected alert will be executed.
+     * - true, means the widget has not error container, but alert will be executed.
+     * - false, means the widget has not error container, alert will not be executed.
+     * - string, jQuery selector of error container inside the widget container,
+     * - [[\yii\web\JsExpression]], that returns jQuery object of container,
+     * 
+     */
+    public $errorContainer = null;
+
+    /**
      * @inheritdoc
      * @throws InvalidConfigException
      */
@@ -170,9 +204,6 @@ class BlueimpJQueryUploader extends InputWidget
         if (!isset($this->previewContainerOptions['id'])) {
             $this->previewContainerOptions['id'] = $this->options['id'] . static::ID_PREVIEW_CONTAINER_SUFFIX;
         }
-        if (!isset($this->progressBarOptions['id'])) {
-            $this->progressBarOptions['id'] = $this->options['id'] . static::ID_PROGRESS_SUFFIX;
-        }
 
         $this->initClientOptions();
     }
@@ -185,105 +216,25 @@ class BlueimpJQueryUploader extends InputWidget
         if (!isset($this->clientOptions['url'])) {
             $this->clientOptions['url'] = Url::to($this->url, $this->scheme);
         }
-        if (!isset($this->clientOptions['dataType'])) {
-            $this->clientOptions['dataType'] = 'json';
+
+        if (!isset($this->clientOptions['fileInputId'])) {
+            $this->clientOptions['fileInputId'] = $this->fileInputOptions['id'];
         }
-
-        if (!isset($this->clientOptions['fileInput'])) {
-            $this->clientOptions['fileInput'] = new JsExpression('jQuery("#" + ' . Json::encode($this->fileInputOptions['id']) . ')');
+        if (!isset($this->clientOptions['hiddenInputId'])) {
+            $this->clientOptions['hiddenInputId'] = $this->hiddenInputOptions['id'];
         }
-        if (!isset($this->clientOptions['dropZone'])) {
-            $this->clientOptions['dropZone'] = new JsExpression('jQuery("#" + ' . Json::encode($this->options['id']) . ')');
+        if (!isset($this->clientOptions['previewContainerId'])) {
+            $this->clientOptions['previewContainerId'] = $this->previewContainerOptions['id'];
         }
-        if (!isset($this->clientOptions['pasteZone'])) {
-            $this->clientOptions['pasteZone'] = new JsExpression('jQuery("#" + ' . Json::encode($this->options['id']) . ')');;
+        if (!isset($this->clientOptions['templateId'])) {
+            $this->clientOptions['templateId'] = $this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX;
         }
-
-        if (!isset($this->clientOptions['formData'])) {
-            $this->clientOptions['formData'] = new JsExpression($this->jsFormDataFunction());
+        if (!isset($this->clientOptions['postParamPrefix'])) {
+            $this->clientOptions['postParamPrefix'] = $this->_context()->postParamStoragePrefix;
         }
-
-        if (!isset($this->clientEvents['done'])) {
-            $this->clientEvents['done'] = $this->jsOnDoneFunction();
+        if ($this->errorContainer !== null) {
+            $this->clientOptions['errorContainer'] = $this->errorContainer;
         }
-        if (!isset($this->clientEvents['fail'])) {
-            $this->clientEvents['fail'] = $this->jsOnFailFunction();
-        }
-    }
-
-    /**
-     * Returns JS function for 'formData' uploader option.
-     * @return string function body for 'formData' option.
-     */
-    protected function jsFormDataFunction()
-    {
-        return 'function (form) {
-            var $form = jQuery(form),
-                fileInputId = ' . Json::encode($this->fileInputOptions['id']) . ',
-                hiddenInputId = ' . Json::encode($this->hiddenInputOptions['id']) . ';
-            return $form.find("#" + hiddenInputId + ", #" + fileInputId).serializeArray();
-        }';
-    }
-
-    /**
-     * Returns JS function - handler on 'done' uploader event.
-     * @return string function body for using as handler on 'done' uploader event.
-     */
-    protected function jsOnDoneFunction()
-    {
-        return '(function () {
-            var $hiddenInput = jQuery("#" + ' . Json::encode($this->hiddenInputOptions['id']) . '),
-                prefix = ' . Json::encode($this->_context()->postParamStoragePrefix) . ',
-                templateId = ' . Json::encode($this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX) . ',
-                templateCompiled = false,
-                $container = jQuery("#" + ' . Json::encode($this->previewContainerOptions['id']) . ');
-
-            if (jQuery("#" + templateId).length) {
-                templateCompiled = window.tmpl(templateId);
-            }
-
-            return function (e, data) {
-                if (!data.result.success) {
-                    alert(data.result.message);
-                    return;
-                }
-
-                var file = data.result.file,
-                    value = file.value;
-                $hiddenInput.val(prefix + value);
-                if ($container.length && templateCompiled) {
-                    $container.html(templateCompiled(file));
-                }
-            };
-        })()';
-    }
-
-    /**
-     * Returns JS function - handler on 'fail' uploader event.
-     * @return string function body for using as handler on 'fail' uploader event.
-     */
-    protected function jsOnFailFunction()
-    {
-        return 'function (e, data) {
-            alert("Internal server error");
-            window.console && console.error && console.error("Upload error: ", data);
-        }';
-    }
-
-    /**
-     * Returns JS function - handler on 'progressall' uploader event.
-     * @return string function body for using as handler on 'progressall' uploader event.
-     */
-    protected function jsOnProgressAllFunction()
-    {
-        $id = Json::encode($this->progressBarOptions['id']);
-        return "(function () {
-            var \$progressBar = jQuery('#' + $id);
-            return function (e, data) {
-                var percent = Math.round(data.loaded / data.total * 100);
-                \$progressBar.css('width', percent + '%');
-            };
-        })()";
     }
 
     /**
@@ -293,18 +244,26 @@ class BlueimpJQueryUploader extends InputWidget
     {
         $preview = $this->renderPreview();
         $input = $this->renderInput();
+        $charset = \Yii::$app->charset;
 
-        if (mb_strpos($this->template, '{progress}', 0, \Yii::$app->charset) !== false) {
+        if (mb_strpos($this->template, '{progress}', 0, $charset) !== false) {
             $progress = $this->renderProgressBar();
         } else {
             $progress = '';
         }
 
-        $this->registerWidget();
+        if ($this->removeContainerTag !== null && mb_strpos($this->template, '{remove}', 0, $charset) !== false) {
+            $remove = $this->renderRemove();
+        } else {
+            $remove = '';
+        }
+
+        $this->registerAssets();
         return Html::tag($this->containerTag, strtr($this->template, [
             '{preview}' => $preview,
             '{input}' => $input,
             '{progress}' => $progress,
+            '{remove}' => $remove,
         ]), $this->options);
     }
 
@@ -478,44 +437,50 @@ class BlueimpJQueryUploader extends InputWidget
      */
     public function renderProgressBar()
     {
-        $result = Html::tag($this->progressBarTag, '', $this->progressBarOptions);
+        if (!isset($this->progressBarOptions['id'])) {
+            $this->progressBarOptions['id'] = $this->options['id'] . static::ID_PROGRESS_SUFFIX;
+        }
+        if (!isset($this->clientOptions['progressBarId'])) {
+            $this->clientOptions['progressBarId'] = $this->progressBarOptions['id'];
+        }
+        return Html::tag($this->progressBarTag, '', $this->progressBarOptions);
+    }
 
-        if (!isset($this->clientEvents['progressall'])) {
-            $this->clientEvents['progressall'] = $this->jsOnProgressAllFunction();
+    /**
+     * Renders remove button container. Click on this button will remove already uploaded image.
+     * @return string remove container html content.
+     */
+    public function renderRemove()
+    {
+        if (!isset($this->removeContainerOptions['id'])) {
+            $this->removeContainerOptions['id'] = $this->options['id'] . static::ID_REMOVE_CONTAINER_SUFFIX;
+        }
+        if (!isset($this->clientOptions['removeContainerId'])) {
+            $this->clientOptions['removeContainerId'] = $this->removeContainerOptions['id'];
         }
 
-        return $result;
+        $options = $this->removeContainerOptions;
+        Html::addCssStyle($options, ['display' => 'none'], false);
+        return Html::tag($this->removeContainerTag, $this->removeContainerContent, $options);
     }
 
     /**
      * Registers client scripts.
-     * @inheritdoc
      */
-    protected function registerWidget($name = 'fileupload', $id = null)
+    protected function registerAssets()
     {
-        if ($id === null) {
-            $id = $this->options['id'];
-        }
+        $name = 'flexibuildBlueimpUploader';
+        $id = $this->options['id'];
 
-        BlueimpFileUploadAsset::register($this->getView());
-        BlueimpTmplAsset::register($this->getView());
+        BlueimpWidgetAsset::register($this->getView());
 
         $this->registerClientOptions($name, $id);
         $this->registerClientEvents($name, $id);
 
         if ($this->_file()->exists()) {
             $fileData = Json::encode(call_user_func($this->convertCallback, $this->_file(), $this->scheme));
-            $previewTemplateId = Json::encode($this->options['id'] . static::ID_PREVIEW_TEMPLATE_SUFFIX);
-            $previewContainerId = Json::encode($this->previewContainerOptions['id']);
-            $this->getView()->registerJs("(function () {
-                var file = $fileData,
-                    templateId = $previewTemplateId,
-                    containerId = $previewContainerId,
-                    \$container = jQuery('#' + containerId);
-                if (\$container.length && jQuery('#' + templateId).length) {
-                    \$container.html(window.tmpl(templateId, file));
-                }
-            })();");
+            $js = 'jQuery("#" + ' . Json::encode($id) . ").$name('populateFile', $fileData)";
+            $this->getView()->registerJs($js);
         }
     }
 
