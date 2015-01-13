@@ -15,9 +15,6 @@
         }
     };
 
-    var events = {
-    };
-
     var methods = {
         init: function (options) {
             return this.each(function () {
@@ -34,6 +31,7 @@
                     progressBarId = extractOption(options, 'progressBarId', null),
                     errorContainer = extractOption(options, 'errorContainer', null),
                     removeContainerId = extractOption(options, 'removeContainerId', null),
+                    fillFileList = extractOption(options, 'fillFileList', fillContainerFileList),
 
                 __END_VAR__;
 
@@ -63,8 +61,11 @@
                     progressBarId: progressBarId,
                     errorContainer: errorContainer,
                     removeContainerId: removeContainerId,
-                    settings: options
+                    fillFileList: fillFileList,
+                    settings: options,
                 });
+
+                fillFileList($container, []);
 
                 $container.fileupload(options);
                 $container.on('fileuploaddone.' + DATA_KEY, createOnDoneHandler($container));
@@ -95,6 +96,7 @@
                     templateId = data.templateId,
                     previewContainerId = data.previewContainerId,
                     removeContainerId = data.removeContainerId,
+                    fillFileList = data.fillFileList,
                     $previewContainer;
 
                 if (previewContainerId) {
@@ -106,6 +108,8 @@
                 if (removeContainerId) {
                     $container.find('#' + removeContainerId).show();
                 }
+
+                fillFileList($container, [file], triggerFileChange);
             });
         },
 
@@ -118,6 +122,7 @@
                     removeContainerId = data.removeContainerId,
                     hiddenInputId = data.hiddenInputId,
                     postParamPrefix = data.postParamPrefix,
+                    fillFileList = data.fillFileList,
 
                     $hiddenInput = $container.find("#" + hiddenInputId),
                 __END_VAR__;
@@ -129,6 +134,8 @@
                 if (removeContainerId) {
                     $container.find("#" + removeContainerId).hide();
                 }
+
+                fillFileList($container, [], triggerFileChange);
             });
         }
     };
@@ -147,6 +154,7 @@
             templateId = data.templateId,
             previewContainerId = data.previewContainerId,
             removeContainerId = data.removeContainerId,
+            fillFileList = data.fillFileList,
 
             templateCompiled = false,
             $hiddenInput = $container.find('#' + hiddenInputId),
@@ -179,6 +187,8 @@
             if ($removeContainer) {
                 $removeContainer.show();
             }
+
+            fillFileList($container, [file], triggerFileChange);
         };
     }
 
@@ -251,12 +261,18 @@
                 return false;
             }
 
-            $errorContainer = $form.find(attribute.container).find(attribute.error);
+            $attributeContainer = $form.find(attribute.container);
+            $errorContainer = $attributeContainer.find(attribute.error);
             if (attribute.encodeError) {
                 $errorContainer.text(errorMessage);
             } else {
                 $errorContainer.html(errorMessage);
             }
+
+            $attributeContainer
+                .removeClass(yiiActiveFormData.settings.successCssClass)
+                .addClass(yiiActiveFormData.settings.errorCssClass);
+
             return true;
         };
 
@@ -293,10 +309,22 @@
         }
     };
 
+    function fillContainerFileList($container, files, afterFillCallback) {
+        $container.get(0).files = files;
+        if ($.isFunction(afterFillCallback)) {
+            afterFillCallback.call($container);
+        }
+    }
+    function triggerFileChange() {
+        $(this).find('input:file').trigger('change');
+    }
+
     function extractOption(options, name, defaultValue) {
-        if (options[name] !== undefined) {
+        if ($.isPlainObject(options) && options[name] !== undefined) {
             var result = options[name];
-            delete options[name];
+            if (options.hasOwnProperty(name)) {
+                delete options[name];
+            }
             return result;
         } else if (defaultValue !== undefined) {
             return defaultValue;

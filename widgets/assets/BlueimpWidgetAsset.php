@@ -14,7 +14,6 @@ class BlueimpWidgetAsset extends \yii\web\AssetBundle
         'flexibuild-blueimp-jquery-uploader.js',
     ];
     public $depends = [
-        'flexibuild\file\widgets\assets\FlexibuildFileAsset',
         'flexibuild\file\widgets\assets\BlueimpFileUploadAsset',
         'flexibuild\file\widgets\assets\BlueimpTmplAsset',
     ];
