@@ -399,20 +399,28 @@ class File extends FileComponent
 
     /**
      * Gets  basename of the file.
+     * @param string $format the name of formatted file version. Null (default) meaning source file.
      * @return string|null basename of the file. Null meaning file is empty.
+     * @throws InvalidCallException if `$format` is not null but file has not been initialized yet.
      */
-    public function getName()
+    public function getName($format = null)
     {
-        if ($this->_name !== null) {
+        if ($format === null && $this->_name !== null) {
             return $this->_name;
         }
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
-                return $this->_name = $storage->getBaseName($this->getData());
+                $result = $storage->getBaseName($this->getData(), $format);
             } else {
-                return $this->_name = FileSystemHelper::basename($this->getUrl());
+                $result = urldecode(FileSystemHelper::basename($this->getUrl($format)));
             }
+            if ($format === null) {
+                $this->_name = $result;
+            }
+            return $result;
+        } elseif ($format !== null) {
+            throw new InvalidCallException('You cannot call ' . __FUNCTION__ . ' for formatted version of file when the last has not been initialized yet.');
         }
         return null;
     }
@@ -428,16 +436,24 @@ class File extends FileComponent
 
     /**
      * Gets temp filepath or read filepath for the file.
+     * @param string $format the name of formatted file version. Null (default) meaning source file.
      * @return string|null temp filepath for uploaded file, and read file path fot initialized file.
      * Null meaning file is empty.
+     * @throws InvalidCallException if `$format` is not null but file has not been initialized yet.
      */
-    public function getTempName()
+    public function getTempName($format = null)
     {
-        if ($this->_tempName !== null) {
+        if ($format === null && $this->_tempName !== null) {
             return $this->_tempName;
         }
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
-            return $this->_tempName = $this->context->getStorage()->getReadFilePath($this->getData());
+            $result = $this->context->getStorage()->getReadFilePath($this->getData(), $format);
+            if ($format === null) {
+                $this->_tempName = $result;
+            }
+            return $result;
+        } elseif ($format !== null) {
+            throw new InvalidCallException('You cannot call ' . __FUNCTION__ . ' for formatted version of file when the last has not been initialized yet.');
         }
         return null;
     }
@@ -454,21 +470,29 @@ class File extends FileComponent
 
     /**
      * Gets mime type of file.
+     * @param string $format the name of formatted file version. Null (default) meaning source file.
      * @return string|null mime type of file. Null meaning file is empty.
+     * @throws InvalidCallException if `$format` is not null but file has not been initialized yet.
      */
-    public function getType()
+    public function getType($format = null)
     {
-        if ($this->_type !== null) {
+        if ($format === null && $this->_type !== null) {
             return $this->_type;
         }
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
-                return $this->_type = $storage->getMimeType($this->getData());
+                $result = $storage->getMimeType($this->getData(), $format);
             } else {
-                $tempName = $this->getTempName();
-                return $this->_type = FileSystemHelper::getMimeType($tempName);
+                $tempName = $this->getTempName($format);
+                $result = FileSystemHelper::getMimeType($tempName);
             }
+            if ($format === null) {
+                $this->_type = $result;
+            }
+            return $result;
+        } elseif ($format !== null) {
+            throw new InvalidCallException('You cannot call ' . __FUNCTION__ . ' for formatted version of file when the last has not been initialized yet.');
         }
         return null;
     }
@@ -484,21 +508,30 @@ class File extends FileComponent
 
     /**
      * Gets file size in bytes.
+     * @param string $format the name of formatted file version. Null (default) meaning source file.
+     * @param string $format the name of formatted file version. Null (default) meaning source file.
      * @return integer|null file size in bytes. Null meaning file is empty.
+     * @throws InvalidCallException if `$format` is not null but file has not been initialized yet.
      */
-    public function getSize()
+    public function getSize($format = null)
     {
-        if ($this->_size !== null) {
+        if ($format === null && $this->_size !== null) {
             return $this->_size;
         }
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
-                return $this->_size = $storage->getFileSize($this->getData());
+                $result = $this->_size = $storage->getFileSize($this->getData(), $format);
             } else {
-                $tempName = $this->getTempName();
-                return $this->_size = filesize($tempName);
+                $tempName = $this->getTempName($format);
+                $result = filesize($tempName);
             }
+            if ($format === null) {
+                $this->_size = $result;
+            }
+            return $result;
+        } elseif ($format !== null) {
+            throw new InvalidCallException('You cannot call ' . __FUNCTION__ . ' for formatted version of file when the last has not been initialized yet.');
         }
         return null;
     }
@@ -743,7 +776,7 @@ class File extends FileComponent
             return false;
         }
 
-        if ($deleteTempFile && !@unlink($tempFile)) {
+        if ($deleteTempFile && is_uploaded_file($tempFile) && !@unlink($tempFile)) {
             Yii::warning("Cannot remove temporary uploaded file '$tempFile'.", __METHOD__);
         }
 
@@ -898,31 +931,33 @@ class File extends FileComponent
      * Note! This method returns filename (like in `pathinfo(..., PATHINFO_FILENAME)), NOT basename (like `basename()`).
      * It is used because the same logic was in [[\yii\web\UploadedFile]] (for back capability).
      * 
+     * @param string $format the name of format.
      * @inheritdoc
      */
-    public function getBaseName()
+    public function getBaseName($format = null)
     {
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
-                return $storage->getFileName($this->getData());
+                return $storage->getFileName($this->getData(), $format);
             }
         }
-        return FileSystemHelper::filename($this->getName());
+        return FileSystemHelper::filename($this->getName($format));
     }
 
     /**
+     * @param string $format the name of format.
      * @inheritdoc
      */
-    public function getExtension()
+    public function getExtension($format = null)
     {
         if ($this->status === self::STATUS_INITIALIZED_FILE) {
             $storage = $this->context->getStorage();
             if ($storage instanceof Storage) {
-                return $storage->getExtension($this->getData());
+                return $storage->getExtension($this->getData(), $format);
             }
         }
-        return FileSystemHelper::extension($this->getName());
+        return FileSystemHelper::extension($this->getName($format));
     }
 
     /**

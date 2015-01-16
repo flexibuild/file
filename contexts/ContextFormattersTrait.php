@@ -6,6 +6,7 @@ use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
 
+use flexibuild\file\helpers\FileSystemHelper;
 use flexibuild\file\storages\StorageInterface;
 use flexibuild\file\storages\Storage;
 use flexibuild\file\formatters\FormatterInterface;
@@ -335,7 +336,11 @@ trait ContextFormattersTrait
                 Yii::warning("Cannot read content of the file '$formattedTmpFile'.", __METHOD__);
                 $resultData = false;
             } else {
-                $resultData = $storage->saveFormattedFile($data, $content, $format);
+                $decodedFromattedTmpFile = FileSystemHelper::decodeFilename($formattedTmpFile);
+                $formattedTmpFileExt = $decodedFromattedTmpFile === false
+                    ? false
+                    : FileSystemHelper::extension($decodedFromattedTmpFile);
+                $resultData = $storage->saveFormattedFile($data, $content, $format, $formattedTmpFileExt);
             }
         }
 

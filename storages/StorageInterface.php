@@ -25,10 +25,12 @@ interface StorageInterface
      * @param string $data data that can be used for loading source file.
      * @param string $content content of the formatted file.
      * @param string $formatName name of the format.
+     * @param string|boolean $extension the extension of formatted version of file.
+     * False (default) meaning file has not extension.
      * @return string|boolean string data that can be used for loading source file int he future.
      * False meaning formatted file was not save.
      */
-    public function saveFormattedFile($data, $content, $formatName);
+    public function saveFormattedFile($data, $content, $formatName, $extension = false);
 
     /**
      * Returns file url for accessing to file through http protocol.

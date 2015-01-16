@@ -34,6 +34,11 @@ class FileSystemStorage extends Storage
     public $webPath = '@web/upload/files/{context}';
 
     /**
+     * @var string the subdirectory for saving formatted versions of files.
+     */
+    public $formatsSubdir = 'formats';
+
+    /**
      * @var int mode for creating new directories.
      */
     public $makeDirMode = 0777;
@@ -113,6 +118,14 @@ class FileSystemStorage extends Storage
     public $maxLength = 250;
 
     /**
+     * @var string this suffix will be added to all filenames of formatted files.
+     * Be carefully, if you want to change this property.
+     * It must not contain special or non-latin chars, but must be an unique string that differs from format names.
+     * By default '-format', because '-' symbol cannot be in format names.
+     */
+    public $formatSuffix = '-format';
+
+    /**
      * @inheritdoc
      */
     public function saveFile($content, $originFilename = null)
@@ -155,9 +168,9 @@ class FileSystemStorage extends Storage
     /**
      * @inheritdoc
      */
-    public function saveFormattedFile($data, $content, $formatName)
+    public function saveFormattedFile($data, $content, $formatName, $extension = false)
     {
-        $fsFormatPath = $this->_getFormatFSFilePath($data, $formatName);
+        $fsFormatPath = $this->_getFormatFSFilePath($data, $formatName, $extension);
         if (false === @file_put_contents($fsFormatPath, $content)) {
             Yii::warning("Cannot save formatted as '$formatName' version of file '$data' in '{$this->context->name}' context.");
             return false;
@@ -174,7 +187,10 @@ class FileSystemStorage extends Storage
      */
     public function saveFormattedFileByCopying($data, $sourceFilePath, $formatName)
     {
-        $fsFormatPath = $this->_getFormatFSFilePath($data, $formatName);
+        $decodedFilePath = FileSystemHelper::decodeFilename($sourceFilePath);
+        $extension = $decodedFilePath === false ? false : FileSystemHelper::extension($decodedFilePath);
+
+        $fsFormatPath = $this->_getFormatFSFilePath($data, $formatName, $extension);
         if (!@copy($sourceFilePath, $fsFormatPath)) {
             Yii::warning("Cannot copy formatted as '$formatName' version of file ($sourceFilePath) for '$data' file in '{$this->context->name}' context.");
             return false;
@@ -191,22 +207,27 @@ class FileSystemStorage extends Storage
      * Note returned file path will be in local file system character set.
      * @param string $data data of source file.
      * @param string $formatName the format name.
+     * @param string|false $extension the extension of formatted version of file.
+     * False meaning file has not extension.
      * @return string full path to formatted version of file.
      * @throws InvalidParamException if file with `$data` does not exist.
      * @throws InvalidConfigException if cannot create directory for format.
      */
-    private function _getFormatFSFilePath($data, $formatName)
+    private function _getFormatFSFilePath($data, $formatName, $extension)
     {
         $this->checkFileData($data);
 
         list($folder, $basename) = explode('/', $data);
-        $dirname = $this->getRootDirectory() . "/$folder";
-        $formatDir = "$dirname/$formatName";
+        $fsBasename = FileSystemHelper::encodeFilename($basename);
 
-        if (!FileSystemHelper::createDirectory($formatDir, $this->makeDirMode, false)) {
-            throw new InvalidConfigException("Cannot create directory: $formatDir");
+        $dirname = $this->getRootDirectory() . "/$folder/$this->formatsSubdir";
+        $fsFormatDir = "$dirname/$fsBasename";
+
+        if (!FileSystemHelper::createDirectory($fsFormatDir, $this->makeDirMode)) {
+            throw new InvalidConfigException("Cannot create directory: $dirname/$basename");
         }
-        return "$formatDir/" . FileSystemHelper::encodeFilename($basename);
+        return "$fsFormatDir/$formatName{$this->formatSuffix}" .
+            ($extension === false ? '' : ".$extension");
     }
 
     /**
@@ -225,6 +246,7 @@ class FileSystemStorage extends Storage
         $fsSourceFilename = FileSystemHelper::encodeFilename($fileParts[1]);
 
         switch (true) {
+            case $fsSourceFilename === false; // no break
             case !preg_match('/^[a-z0-9\-\_]+$/i', $fileParts[0]); // no break
             case in_array($fsSourceFilename, ['', '.', '..'], true); // no break
             case $this->containsSpecialChar($fsSourceFilename); // no  break
@@ -239,14 +261,40 @@ class FileSystemStorage extends Storage
 
             case !is_scalar($format); // no break
             case !preg_match('/^[0-9a-z\_]+$/i', $format); // no break
-            case !is_dir("$rootDirectory/$fileParts[0]/$format"); // no break
-            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]", $format, true); // no break
-            case !is_file("$rootDirectory/$fileParts[0]/$format/$fsSourceFilename"); // no break
-            case !FileSystemHelper::fileExists("$rootDirectory/$fileParts[0]/$format", $fsSourceFilename, true); // no break
+            case !($fsFormatsDir = "$rootDirectory/$fileParts[0]/$this->formatsSubdir"); // no break
+            case !is_dir("$fsFormatsDir/$fsSourceFilename"); // no break
+            case !FileSystemHelper::fileExists($fsFormatsDir, $fsSourceFilename, true); // no break
                 return false;
         }
 
-        return true;
+        return $this->_findFormatBasename("$fsFormatsDir/$fsSourceFilename", $format) !== false;
+    }
+
+    /**
+     * Searches basename of formatted version of file.
+     * @param string $dir full path to directory where formatted file must be searched.
+     * This param must be in local file system charset.
+     * @param string $format the name of format.
+     * @return string|boolean basename of formatted version of file in Yii app charset or false if file does not exist.
+     */
+    private function _findFormatBasename($dir, $format)
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+        $files = FileSystemHelper::findFiles($dir, [
+            'only' => ["/$format{$this->formatSuffix}*"],
+            'caseSensitive' => true,
+            'recursive' => false,
+        ]);
+
+        if (count($files) !== 1 || !isset($files[0])) {
+            return false;
+        }
+        if (false === $decodedFilename = FileSystemHelper::decodeFilename($files[0])) {
+            return false;
+        }
+        return FileSystemHelper::basename($decodedFilename);
     }
 
     /**
@@ -262,9 +310,12 @@ class FileSystemStorage extends Storage
 
         if ($format === null) {
             return "$rootWebPath/$folder/$encodedFilename";
-        } else {
-            return "$rootWebPath/$folder/$format/$encodedFilename";
         }
+
+        $rootDir = $this->getRootDirectory();
+        $fsFilename = FileSystemHelper::encodeFilename($filename);
+        $formatFilename = $this->_findFormatBasename("$rootDir/$folder/$this->formatsSubdir/$fsFilename", $format);
+        return "$rootWebPath/$folder/$this->formatsSubdir/$encodedFilename/" . rawurlencode($formatFilename);
     }
 
     /**
@@ -280,9 +331,11 @@ class FileSystemStorage extends Storage
 
         if ($format === null) {
             return "$rootDirectory/$folder/$fsFilename";
-        } else {
-            return "$rootDirectory/$folder/$format/$fsFilename";
         }
+
+        $formatFilename = $this->_findFormatBasename("$rootDirectory/$folder/$this->formatsSubdir/$fsFilename", $format);
+        return "$rootDirectory/$folder/$this->formatsSubdir/$fsFilename/" . 
+            FileSystemHelper::encodeFilename($formatFilename);
     }
 
     /**
@@ -294,18 +347,22 @@ class FileSystemStorage extends Storage
 
         list($folder, $filename) = explode('/', $data);
         $rootDirectory = $this->getRootDirectory();
-        $formatDirs = FileSystemHelper::findDirectories("$rootDirectory/$folder", [
+        $fsFilename = FileSystemHelper::encodeFilename($filename);
+
+        $files = FileSystemHelper::findFiles("$rootDirectory/$folder/$this->formatsSubdir/$fsFilename", [
+            'only' => ["/*{$this->formatSuffix}*"],
+            'caseSensitive' => true,
             'recursive' => false,
         ]);
 
-        $fsFilename = FileSystemHelper::encodeFilename($filename);
         $result = [];
-        foreach ($formatDirs as $formatDir) {
-            if (is_file("$formatDir/$fsFilename") && FileSystemHelper::fileExists($formatDir, $fsFilename, true)) {
-                $result[] = FileSystemHelper::basename($formatDir);
+        foreach ($files as $formatFilepath) {
+            $decodedFormatFilepath = FileSystemHelper::decodeFilename($formatFilepath);
+            $formatBasename = FileSystemHelper::basename($decodedFormatFilepath);
+            if (preg_match('/^([0-9a-z\_]+)' . preg_quote($this->formatSuffix, '/') . '.*$/i', $formatBasename, $matches)) {
+                $result[] = $matches[1];
             }
         }
-
         return $result;
     }
 
@@ -379,9 +436,23 @@ class FileSystemStorage extends Storage
         $rootDirectory = $this->getRootDirectory();
         $fsFilename = FileSystemHelper::encodeFilename($filename);
 
-        if ($result = @unlink("$rootDirectory/$folder/$format/$fsFilename")) {
-            if (FileSystemHelper::isEmptyDirectory("$rootDirectory/$folder/$format")) {
-                @rmdir("$rootDirectory/$folder/$format");
+        if (false === $formatBasename = $this->_findFormatBasename("$rootDirectory/$folder/$this->formatsSubdir/$fsFilename", $format)) {
+            return false;
+        }
+        $fsFormatBasename = FileSystemHelper::encodeFilename($formatBasename);
+
+        if ($result = @unlink("$rootDirectory/$folder/$this->formatsSubdir/$fsFilename/$fsFormatBasename")) {
+            $clearDirs = [
+                "$rootDirectory/$folder/$this->formatsSubdir/$fsFilename",
+                "$rootDirectory/$folder/$this->formatsSubdir",
+            ];
+            foreach ($clearDirs as $dir) {
+                if (!FileSystemHelper::isEmptyDirectory($dir)) {
+                    break;
+                }
+                if (!@rmdir($dir)) {
+                    break;
+                }
             }
         }
         return $result;
@@ -393,7 +464,14 @@ class FileSystemStorage extends Storage
     public function getBaseName($data, $format = null)
     {
         $this->checkFileData($data, $format);
-        return FileSystemHelper::basename($data);
+        if ($format === null) {
+            return FileSystemHelper::basename($data);
+        }
+
+        list($folder, $filename) = explode('/', $data);
+        $rootDir = $this->getRootDirectory();
+        $fsFilename = FileSystemHelper::encodeFilename($filename);
+        return $this->_findFormatBasename("$rootDir/$folder/$this->formatsSubdir/$fsFilename", $format);
     }
 
     /**
@@ -401,8 +479,8 @@ class FileSystemStorage extends Storage
      */
     public function getFileName($data, $format = null)
     {
-        $this->checkFileData($data, $format);
-        return FileSystemHelper::filename($data);
+        $basename = $this->getBaseName($data, $format);
+        return FileSystemHelper::basename($basename);
     }
 
     /**
@@ -410,8 +488,8 @@ class FileSystemStorage extends Storage
      */
     public function getExtension($data, $format = null)
     {
-        $this->checkFileData($data, $format);
-        return FileSystemHelper::extension($data);
+        $basename = $this->getBaseName($data, $format);
+        return FileSystemHelper::extension($basename);
     }
 
     /**

@@ -63,7 +63,7 @@ abstract class Storage extends Object implements StorageInterface
     /**
      * @inheritdoc
      */
-    abstract public function saveFormattedFile($data, $content, $formatName);
+    abstract public function saveFormattedFile($data, $content, $formatName, $extension = false);
 
     /**
      * Saves formatted version of file (e.g. any resized image for source image) by copying from another file with needed content.
@@ -83,7 +83,10 @@ abstract class Storage extends Object implements StorageInterface
             Yii::warning("Cannot read content of the file '$sourceFilePath'.", __METHOD__);
             return false;
         }
-        return $this->saveFormattedFile($data, $content, $formatName);
+
+        $decodedFilePath = FileSystemHelper::decodeFilename($sourceFilePath);
+        $extension = $decodedFilePath === false ? false : FileSystemHelper::extension($decodedFilePath);
+        return $this->saveFormattedFile($data, $content, $formatName, $extension);
     }
 
     /**
@@ -208,7 +211,7 @@ abstract class Storage extends Object implements StorageInterface
     public function getBaseName($data, $format = null)
     {
         $url = $this->getUrl($data, $format);
-        return FileSystemHelper::basename($url);
+        return urldecode(FileSystemHelper::basename($url));
     }
 
     /**
@@ -220,7 +223,7 @@ abstract class Storage extends Object implements StorageInterface
     public function getFileName($data, $format = null)
     {
         $url = $this->getUrl($data, $format);
-        return FileSystemHelper::filename($url);
+        return urldecode(FileSystemHelper::filename($url));
     }
 
     /**
@@ -232,6 +235,6 @@ abstract class Storage extends Object implements StorageInterface
     public function getExtension($data, $format = null)
     {
         $url = $this->getUrl($data, $format);
-        return FileSystemHelper::extension($url);
+        return urldecode(FileSystemHelper::extension($url));
     }
 }
