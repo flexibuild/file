@@ -349,7 +349,12 @@ class FileSystemStorage extends Storage
         $rootDirectory = $this->getRootDirectory();
         $fsFilename = FileSystemHelper::encodeFilename($filename);
 
-        $files = FileSystemHelper::findFiles("$rootDirectory/$folder/$this->formatsSubdir/$fsFilename", [
+        $searchDir = "$rootDirectory/$folder/$this->formatsSubdir/$fsFilename";
+        if (!is_dir($searchDir)) {
+            return [];
+        }
+
+        $files = FileSystemHelper::findFiles($searchDir, [
             'only' => ["/*{$this->formatSuffix}*"],
             'caseSensitive' => true,
             'recursive' => false,
