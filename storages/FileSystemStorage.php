@@ -82,6 +82,9 @@ class FileSystemStorage extends Storage
     public $disallowedExtensions = [
         'htaccess',
         'php',
+        'php3',
+        'php4',
+        'php5',
         'pl',
         'py',
         'jsp',
