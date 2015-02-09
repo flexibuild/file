@@ -1,5 +1,5 @@
-php-safe
-========
+Yii2 File Manager
+=================
 
 Yii2 extension that allows to work with files as with simple properties.
 
