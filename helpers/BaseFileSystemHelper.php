@@ -646,6 +646,6 @@ class BaseFileSystemHelper extends BaseFileHelper
             }
         }
 
-        return $fileName;
+        return rtrim($dir, '\/') . "/$fileName";
     }
 }
