@@ -106,7 +106,7 @@ class SimpleFileInput extends InputWidget
         }
 
         $model = $this->model;
-        $file = $model->{$this->attribute};
+        $file = Html::getAttributeValue($model, $this->attribute);
         if (!$file instanceof File) {
             throw new InvalidConfigException("Attribute $this->attribute of ".get_class($model).' must be an instance of '.File::className().' for usage in '.get_class($this).'.');
         }
@@ -304,7 +304,7 @@ class SimpleFileInput extends InputWidget
      */
     private function _file()
     {
-        return $this->model->{$this->attribute};
+        return Html::getAttributeValue($this->model, $this->attribute);
     }
 
     /**
