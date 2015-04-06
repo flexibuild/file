@@ -56,10 +56,18 @@ class BaseImageHelper extends BaseImage
      */
     const THUMBNAIL_INSET = 'inset';
     /**
+     * Mode means the thumbnail method will work as 'inset' method, but it will always resize image.
+     */
+    const THUMBNAIL_INSET_FORCE = 'inset-force';
+    /**
      * Mode means the thumbnail method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
      */
     const THUMBNAIL_OUTBOUND = 'outbound';
+    /**
+     * Mode means the thumbnail method will work as 'outbound' method, but it will always resize image.
+     */
+    const THUMBNAIL_OUTBOUND_FORCE = 'outbound-force';
 
     /**
      * Constants that may be used in [[self::watermark()]] method.
@@ -171,8 +179,12 @@ class BaseImageHelper extends BaseImage
      * - 'bottom-right' or [[self::THUMBNAIL_CROP_BOTTOM_RIGHT]], the method will crop max image area beginning from bottom-right point.
      * - 'inset' or [[self::THUMBNAIL_INSET]], the method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_INSET]] mode, that means
      * both sides will be scaled down until they match or are smaller than the parameter given for the side.
+     * - 'inset-force' or [[self::THUMBNAIL_INSET_FORCE]], the method means the thumbnail method will work as 'inset' method,
+     * but it will always resize image
      * - 'outbound' or [[self::THUMBNAIL_OUTBOUND]], the method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
+     * - 'outbound-force' or [[self::THUMBNAIL_OUTBOUND_FORCE]], the method means the thumbnail method will work as 'outbound' method,
+     * but it will always resize image.
      * 
      * @param string $backgroundColor string color in RGB style. Default is 'FFF';
      * This color will be used as background if image height or width less than needed.
@@ -201,14 +213,26 @@ class BaseImageHelper extends BaseImage
             $box = new Box($width, $height);
         }
 
-        if ($mode === self::THUMBNAIL_INSET || $mode === self::THUMBNAIL_OUTBOUND) {
+        $parentModes = [
+            self::THUMBNAIL_INSET,
+            self::THUMBNAIL_INSET_FORCE,
+            self::THUMBNAIL_OUTBOUND,
+            self::THUMBNAIL_OUTBOUND_FORCE,
+        ];
+        if (in_array($mode, $parentModes, true)) {
             // parent (yii/imagine) logic
             $imgSize = isset($imgSize) ? $imgSize : $img->getSize();
-            if (($imgSize->getWidth() <= $box->getWidth() && $imgSize->getHeight() <= $box->getHeight()) || (!$box->getWidth() && !$box->getHeight())) {
+
+            if ($mode === self::THUMBNAIL_INSET || $mode === self::THUMBNAIL_OUTBOUND) {
+                if ($imgSize->getWidth() <= $box->getWidth() && $imgSize->getHeight() <= $box->getHeight()) {
+                    return $img->copy();
+                }
+            }
+            if (!$box->getWidth() && !$box->getHeight()) {
                 return $img->copy();
             }
 
-            $mode = $mode === self::THUMBNAIL_INSET
+            $mode = in_array($mode, [self::THUMBNAIL_INSET, self::THUMBNAIL_INSET_FORCE], true)
                 ? ManipulatorInterface::THUMBNAIL_INSET
                 : ManipulatorInterface::THUMBNAIL_OUTBOUND;
             $img = $img->thumbnail($box, $mode);

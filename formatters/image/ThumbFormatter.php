@@ -36,8 +36,10 @@ class ThumbFormatter extends AbstractFormatter
      * - 'bottom-right', formatter will crop max image area beginning from bottom-right point.
      * - 'inset', the method will works as [[\yii\imagine\Image::thumbnail()]] with [[ManipulateInterface::THUMBNAIL_INSET]] mode, that means
      * both sides will be scaled down until they match or are smaller than the parameter given for the side.
+     * - 'inset-force', the method will work as 'inset' method, but it will always resize image.
      * - 'outbound', the method will works as [[\yii\imagine\Image::thumbnail()]] with [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
+     * - 'outbound-force', the method will work as 'outbound' method, but it will always resize image.
      */
     public $mode = ImageHelper::THUMBNAIL_CROP_CENTER;
 
