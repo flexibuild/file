@@ -5,6 +5,7 @@ namespace flexibuild\file\helpers;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
+use yii\base\InvalidValueException;
 
 use yii\imagine\Image;
 use yii\imagine\BaseImage;
@@ -66,6 +67,10 @@ class BaseImageHelper extends BaseImage
      * Mode means watermark will be added in random place.
      */
     const WATERMARK_RANDOM = 'random';
+    /**
+     * Mode means watermark will be repeated.
+     */
+    const WATERMARK_REPEAT = 'repeat';
     /**
      * Default mode which means watermark will be placed in center.
      */
@@ -241,15 +246,15 @@ class BaseImageHelper extends BaseImage
 
         if ($resizeWidth / $imgWidth * $imgHeight > $resizeHeight) {
             $img = $img->copy()->resize($imgSize = $imgSize->widen($resizeWidth));
-            $resizeType = 'by-width';
+            $resizedByWidth = true;
         } else {
             $img = $img->copy()->resize($imgSize = $imgSize->heighten($resizeHeight));
-            $resizeType = 'by-height';
+            $resizedByWidth = false;
         }
 
         switch ($mode) {
             case self::THUMBNAIL_CROP_CENTER:
-                $start = $resizeType === 'by-width'
+                $start = $resizedByWidth
                     ? new Point(0, floor(($imgSize->getHeight() - $resizeHeight) / 2))
                     : new Point(floor(($imgSize->getWidth() - $resizeWidth) / 2), 0);
                 break;
@@ -288,6 +293,7 @@ class BaseImageHelper extends BaseImage
      * - `x` position: string|integer where watermark must be placed by width. Can be one of the followings:
      *   - integer, concrete coordinate that will be used.
      *   - 'random' or [[self::WATERMARK_RANDOM]], mode means watermark will be added in random place.
+     *   - 'repeat' or [[self::WATERMARK_REPEAT]], mode means watermark will be repeated.
      *   - 'center' or [[self::WATERMARK_CENTER]] (default), mode means watermark will be placed in center.
      *   - 'left' or [[self::WATERMARK_LEFT]], mode means watermark will be placed in left place.
      *   - 'right' or [[self::WATERMARK_RIGHT]], mode means watermark will be placed in right place.
@@ -354,13 +360,48 @@ class BaseImageHelper extends BaseImage
                     $coordinate = $imgLength > $watermarkLength ? mt_rand(0, $imgLength - $watermarkLength) : 0;
                     break;
 
+                case $coordinate === self::WATERMARK_REPEAT:
+                    $coordinate = [$coordinateTmp = 0];
+                    if ($watermarkLength <= 0) {
+                        throw new InvalidValueException('Watermark length is less than or equal to zero.');
+                    }
+                    while (($coordinateTmp += $watermarkLength) < $imgLength) {
+                        $coordinate[] = $coordinateTmp;
+                    }
+                    break;
+
                 default:
                     throw new InvalidParamException("Unknown coordinate type: '$coordinate'.");
             }
             $start[$index] = $coordinate;
         }
 
-        $img->paste($watermark, new Point($start[0], $start[1]));
+        foreach ((array) $start[0] as $startX) {
+            $watermarkFixedByX = $watermark;
+            if ($startX + $watermarkSize->getWidth() > $imgSize->getWidth()) {
+                $watermarkFixedByX = $watermark->copy()->crop(
+                    new Point(0, 0),
+                    new Box(
+                        $imgSize->getWidth() - $startX,
+                        $watermarkSize->getHeight()
+                    )
+                );
+            }
+
+            foreach ((array) $start[1] as $startY) {
+                $fixedWatermark = $watermarkFixedByX;
+                if ($startY + $watermarkSize->getHeight() > $imgSize->getHeight()) {
+                    $fixedWatermark = $watermarkFixedByX->copy()->crop(
+                        new Point(0, 0),
+                        new Box(
+                            $watermarkFixedByX->getSize()->getWidth(),
+                            $imgSize->getHeight() - $startY
+                        )
+                    );
+                }
+                $img = $img->paste($fixedWatermark, new Point($startX, $startY));
+            }
+        }
         return $img;
     }
 
