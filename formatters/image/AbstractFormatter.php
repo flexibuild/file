@@ -39,6 +39,14 @@ abstract class AbstractFormatter extends Formatter
     public $extension = null;
 
     /**
+     * @var array options for [[Imagine\Image\ManipulatorInterface::save()]] method.
+     * One of the important option is 'quality':
+     * integer between 0 (the best compression, the worst quality) and
+     * 100 (no compression, the best quality).
+     */
+    public $saveOptions = [];
+
+    /**
      * @var string|null the path (or alias) of a PHP file containing MIME type information.
      */
     public $mimeMagicFile = '@flexibuild/file/formatters/image/mimeTypes.php';
@@ -78,7 +86,7 @@ abstract class AbstractFormatter extends Formatter
             $tempFile = FileSystemHelper::getNewTempFilename($extension);
 
             try {
-                $result->save($tempFile);
+                $result->save($tempFile, $this->saveOptions);
             } catch (\Exception $ex) {
                 throw new Exception("Cannot save temp file: $tempFile. " . $ex->getMessage(), $ex->getCode(), $ex);
             }

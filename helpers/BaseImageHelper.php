@@ -5,6 +5,7 @@ namespace flexibuild\file\helpers;
 use Yii;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
+use yii\base\InvalidValueException;
 
 use yii\imagine\Image;
 use yii\imagine\BaseImage;
@@ -55,10 +56,18 @@ class BaseImageHelper extends BaseImage
      */
     const THUMBNAIL_INSET = 'inset';
     /**
+     * Mode means the thumbnail method will work as 'inset' method, but it will always resize image.
+     */
+    const THUMBNAIL_INSET_FORCE = 'inset-force';
+    /**
      * Mode means the thumbnail method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
      */
     const THUMBNAIL_OUTBOUND = 'outbound';
+    /**
+     * Mode means the thumbnail method will work as 'outbound' method, but it will always resize image.
+     */
+    const THUMBNAIL_OUTBOUND_FORCE = 'outbound-force';
 
     /**
      * Constants that may be used in [[self::watermark()]] method.
@@ -66,6 +75,10 @@ class BaseImageHelper extends BaseImage
      * Mode means watermark will be added in random place.
      */
     const WATERMARK_RANDOM = 'random';
+    /**
+     * Mode means watermark will be repeated.
+     */
+    const WATERMARK_REPEAT = 'repeat';
     /**
      * Default mode which means watermark will be placed in center.
      */
@@ -166,8 +179,12 @@ class BaseImageHelper extends BaseImage
      * - 'bottom-right' or [[self::THUMBNAIL_CROP_BOTTOM_RIGHT]], the method will crop max image area beginning from bottom-right point.
      * - 'inset' or [[self::THUMBNAIL_INSET]], the method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_INSET]] mode, that means
      * both sides will be scaled down until they match or are smaller than the parameter given for the side.
+     * - 'inset-force' or [[self::THUMBNAIL_INSET_FORCE]], the method means the thumbnail method will work as 'inset' method,
+     * but it will always resize image
      * - 'outbound' or [[self::THUMBNAIL_OUTBOUND]], the method will work as parent method, it will use [[ManipulateInterface::THUMBNAIL_OUTBOUND]] mode, that means
      * creating a fixed size thumbnail by first scaling the image up or down and cropping a specified area from the center.
+     * - 'outbound-force' or [[self::THUMBNAIL_OUTBOUND_FORCE]], the method means the thumbnail method will work as 'outbound' method,
+     * but it will always resize image.
      * 
      * @param string $backgroundColor string color in RGB style. Default is 'FFF';
      * This color will be used as background if image height or width less than needed.
@@ -196,14 +213,26 @@ class BaseImageHelper extends BaseImage
             $box = new Box($width, $height);
         }
 
-        if ($mode === self::THUMBNAIL_INSET || $mode === self::THUMBNAIL_OUTBOUND) {
+        $parentModes = [
+            self::THUMBNAIL_INSET,
+            self::THUMBNAIL_INSET_FORCE,
+            self::THUMBNAIL_OUTBOUND,
+            self::THUMBNAIL_OUTBOUND_FORCE,
+        ];
+        if (in_array($mode, $parentModes, true)) {
             // parent (yii/imagine) logic
             $imgSize = isset($imgSize) ? $imgSize : $img->getSize();
-            if (($imgSize->getWidth() <= $box->getWidth() && $imgSize->getHeight() <= $box->getHeight()) || (!$box->getWidth() && !$box->getHeight())) {
+
+            if ($mode === self::THUMBNAIL_INSET || $mode === self::THUMBNAIL_OUTBOUND) {
+                if ($imgSize->getWidth() <= $box->getWidth() && $imgSize->getHeight() <= $box->getHeight()) {
+                    return $img->copy();
+                }
+            }
+            if (!$box->getWidth() && !$box->getHeight()) {
                 return $img->copy();
             }
 
-            $mode = $mode === self::THUMBNAIL_INSET
+            $mode = in_array($mode, [self::THUMBNAIL_INSET, self::THUMBNAIL_INSET_FORCE], true)
                 ? ManipulatorInterface::THUMBNAIL_INSET
                 : ManipulatorInterface::THUMBNAIL_OUTBOUND;
             $img = $img->thumbnail($box, $mode);
@@ -241,15 +270,15 @@ class BaseImageHelper extends BaseImage
 
         if ($resizeWidth / $imgWidth * $imgHeight > $resizeHeight) {
             $img = $img->copy()->resize($imgSize = $imgSize->widen($resizeWidth));
-            $resizeType = 'by-width';
+            $resizedByWidth = true;
         } else {
             $img = $img->copy()->resize($imgSize = $imgSize->heighten($resizeHeight));
-            $resizeType = 'by-height';
+            $resizedByWidth = false;
         }
 
         switch ($mode) {
             case self::THUMBNAIL_CROP_CENTER:
-                $start = $resizeType === 'by-width'
+                $start = $resizedByWidth
                     ? new Point(0, floor(($imgSize->getHeight() - $resizeHeight) / 2))
                     : new Point(floor(($imgSize->getWidth() - $resizeWidth) / 2), 0);
                 break;
@@ -288,6 +317,7 @@ class BaseImageHelper extends BaseImage
      * - `x` position: string|integer where watermark must be placed by width. Can be one of the followings:
      *   - integer, concrete coordinate that will be used.
      *   - 'random' or [[self::WATERMARK_RANDOM]], mode means watermark will be added in random place.
+     *   - 'repeat' or [[self::WATERMARK_REPEAT]], mode means watermark will be repeated.
      *   - 'center' or [[self::WATERMARK_CENTER]] (default), mode means watermark will be placed in center.
      *   - 'left' or [[self::WATERMARK_LEFT]], mode means watermark will be placed in left place.
      *   - 'right' or [[self::WATERMARK_RIGHT]], mode means watermark will be placed in right place.
@@ -354,13 +384,48 @@ class BaseImageHelper extends BaseImage
                     $coordinate = $imgLength > $watermarkLength ? mt_rand(0, $imgLength - $watermarkLength) : 0;
                     break;
 
+                case $coordinate === self::WATERMARK_REPEAT:
+                    $coordinate = [$coordinateTmp = 0];
+                    if ($watermarkLength <= 0) {
+                        throw new InvalidValueException('Watermark length is less than or equal to zero.');
+                    }
+                    while (($coordinateTmp += $watermarkLength) < $imgLength) {
+                        $coordinate[] = $coordinateTmp;
+                    }
+                    break;
+
                 default:
                     throw new InvalidParamException("Unknown coordinate type: '$coordinate'.");
             }
             $start[$index] = $coordinate;
         }
 
-        $img->paste($watermark, new Point($start[0], $start[1]));
+        foreach ((array) $start[0] as $startX) {
+            $watermarkFixedByX = $watermark;
+            if ($startX + $watermarkSize->getWidth() > $imgSize->getWidth()) {
+                $watermarkFixedByX = $watermark->copy()->crop(
+                    new Point(0, 0),
+                    new Box(
+                        $imgSize->getWidth() - $startX,
+                        $watermarkSize->getHeight()
+                    )
+                );
+            }
+
+            foreach ((array) $start[1] as $startY) {
+                $fixedWatermark = $watermarkFixedByX;
+                if ($startY + $watermarkSize->getHeight() > $imgSize->getHeight()) {
+                    $fixedWatermark = $watermarkFixedByX->copy()->crop(
+                        new Point(0, 0),
+                        new Box(
+                            $watermarkFixedByX->getSize()->getWidth(),
+                            $imgSize->getHeight() - $startY
+                        )
+                    );
+                }
+                $img = $img->paste($fixedWatermark, new Point($startX, $startY));
+            }
+        }
         return $img;
     }
 
