@@ -82,20 +82,27 @@ abstract class AbstractFormatter extends Formatter
         $extension = $this->parseFileExtension($readFilePath);
         $processFilePath = $readFilePath;
 
-        if ($this->autoRotate && ($tempFile = $this->rotateImage($readFilePath, $extension) ?: null)) {
-            $processFilePath = $tempFile;
+        if ($this->autoRotate) {
+            Yii::beginProfile($profileToken = "Auto rotating image: $readFilePath.", __METHOD__);
+            if ($tempFile = ($this->rotateImage($readFilePath, $extension) ?: null)) {
+                $processFilePath = $tempFile;
+            }
+            Yii::endProfile($profileToken, __METHOD__);
         }
 
         $this->initImagine();
         try {
+            Yii::beginProfile($profileToken = static::className() . "::processFile($readFilePath)", __METHOD__);
             $result = $this->processFile($processFilePath);
         } catch (\Exception $ex) {
+            Yii::endProfile($profileToken, __METHOD__);
             if (isset($tempFile) && !@unlink($tempFile)) {
                 Yii::warning("Cannot unlink temp file: $tempFile.", __METHOD__);
             }
             $this->restoreImagine();
             throw $ex;
         }
+        Yii::endProfile($profileToken, __METHOD__);
         if (isset($tempFile) && !@unlink($tempFile)) {
             Yii::warning("Cannot unlink temp file: $tempFile.", __METHOD__);
         }
