@@ -2,7 +2,9 @@
 
 namespace flexibuild\file\formatters\image;
 
+use Yii;
 use yii\base\Exception;
+use yii\base\ErrorHandler;
 
 use flexibuild\file\helpers\ImageHelper;
 use flexibuild\file\helpers\FileSystemHelper;
@@ -52,6 +54,11 @@ abstract class AbstractFormatter extends Formatter
     public $mimeMagicFile = '@flexibuild/file/formatters/image/mimeTypes.php';
 
     /**
+     * @var boolean whether need to auto rotate image before processing. True is default.
+     */
+    public $autoRotate = true;
+
+    /**
      * Keeps old [[ImageHelper::getImagine()]] value.
      * @var \Imagine\Image\ImagineInterface
      */
@@ -72,17 +79,29 @@ abstract class AbstractFormatter extends Formatter
      */
     public function format($readFilePath)
     {
+        $extension = $this->parseFileExtension($readFilePath);
+        $processFilePath = $readFilePath;
+
+        if ($this->autoRotate && ($tempFile = $this->rotateImage($readFilePath, $extension) ?: null)) {
+            $processFilePath = $tempFile;
+        }
+
         $this->initImagine();
         try {
-            $result = $this->processFile($readFilePath);
+            $result = $this->processFile($processFilePath);
         } catch (\Exception $ex) {
+            if (isset($tempFile) && !@unlink($tempFile)) {
+                Yii::warning("Cannot unlink temp file: $tempFile.", __METHOD__);
+            }
             $this->restoreImagine();
             throw $ex;
+        }
+        if (isset($tempFile) && !@unlink($tempFile)) {
+            Yii::warning("Cannot unlink temp file: $tempFile.", __METHOD__);
         }
         $this->restoreImagine();
 
         if ($result instanceof ManipulatorInterface) {
-            $extension = $this->parseFileExtension($readFilePath);
             $tempFile = FileSystemHelper::getNewTempFilename($extension);
 
             try {
@@ -93,6 +112,33 @@ abstract class AbstractFormatter extends Formatter
             $result = $tempFile;
         }
         return $result;
+    }
+
+    /**
+     * Rotates image if need.
+     * @param string $readFilePath path to file that must be checked and rotated (if need).
+     * @param string|null|false $extension extension for new temp file.
+     * Default is false, meaning extension must be parsed from `$readFilePath` file.
+     * @return string|null new temp file path, or null if rotating is not necessary.
+     */
+    protected function rotateImage($readFilePath, $extension = false)
+    {
+        try {
+            $result = ImageHelper::normalizeRotating($readFilePath);
+            if (!$result) {
+                return null;
+            }
+
+            if ($extension === false) {
+                $extension = $this->parseFileExtension($readFilePath);
+            }
+            $tempFile = FileSystemHelper::getNewTempFilename($extension);
+            $result->save($tempFile, $this->saveOptions);
+            return $tempFile;
+        } catch (\Exception $ex) {
+            Yii::error('Cannot normalize rotating. ' . ErrorHandler::convertExceptionToString($ex), __METHOD__);
+            return null;
+        }
     }
 
     /**

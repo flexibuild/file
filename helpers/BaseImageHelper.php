@@ -3,6 +3,7 @@
 namespace flexibuild\file\helpers;
 
 use Yii;
+use yii\base\Exception;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
 use yii\base\InvalidValueException;
@@ -438,6 +439,72 @@ class BaseImageHelper extends BaseImage
     {
         $img = static::getImagine()->open(Yii::getAlias($filename));
         $img->effects()->grayscale();
+        return $img;
+    }
+
+    /**
+     * Normalized image rotating.
+     * @param string $filename path to input file.
+     * @return ImageInterface|null Returns normalized image object or null, if rotating is not necessary.
+     * @throws Exception if function `exif_read_data()` was not found.
+     */
+    public static function normalizeRotating($filename)
+    {
+        if (!function_exists('exif_read_data')) {
+            throw new Exception('Function "exif_read_data()" does not found in the PHP core.');
+        }
+        $path = Yii::getAlias($filename);
+        $exif = @exif_read_data($path);
+
+        if (empty($exif) || !is_array($exif) || !isset($exif['Orientation'])) {
+            return null;
+        }
+
+        /* @link http://sylvana.net/jpegcrop/exif_orientation.html */
+        $needMirror = false;
+        $rotateDegrees = 0;
+        switch($exif['Orientation']){
+            case 1:
+                return null;
+            case 2:
+                $needMirror = true;
+                break;
+            case 3:
+                $rotateDegrees = 180;
+                break;
+            case 4:
+                $rotateDegrees = 180;
+                $needMirror = true;
+                break;
+            case 5:
+                $rotateDegrees = 90;
+                $needMirror = true;
+                break;
+            case 6:
+                $rotateDegrees = 90;
+                break;
+            case 7:
+                $rotateDegrees = -90;
+                $needMirror = true;
+                break;
+            case 8:
+                $rotateDegrees = -90;
+                break;
+            default:
+                return null;
+        }
+
+        if (!$rotateDegrees && !$needMirror) {
+            return null;
+        }
+
+        $img = static::getImagine()->open($path);
+        if ($rotateDegrees) {
+            $img = $img->rotate($rotateDegrees);
+        }
+        if ($needMirror) {
+            $img = $img->flipHorizontally();
+        }
         return $img;
     }
 }
