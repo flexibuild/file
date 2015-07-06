@@ -717,13 +717,14 @@ class File extends FileComponent
         // __toString cannot throw exception
         // use trigger_error to bypass this limitation
         try {
-            if ($this->status === self::STATUS_UPLOADED_FILE) {
+            if ($this->status === self::STATUS_INITIALIZED_FILE) {
+                return $this->getUrl($this->toStringFormat, $this->toStringScheme);
+            } else {
                 // when validator is generating errors for just uploaded file
                 // it adds file object to translation params,
                 // but the file cannot get url for just uploaded file
-                return $this->name;
-            } else {
-                return $this->getUrl($this->toStringFormat, $this->toStringScheme);
+                $name = $this->getName();
+                return $name === null ? '' : $name;
             }
         } catch (\Exception $e) {
             ErrorHandler::convertExceptionToError($e);
