@@ -2,6 +2,7 @@
 
 namespace flexibuild\file\widgets;
 
+use yii\base\InvalidConfigException;
 use yii\helpers\Html;
 use yii\helpers\Url;
 use yii\helpers\Json;
@@ -280,7 +281,7 @@ class BlueimpJQueryUploader extends InputWidget
         } else {
             $method = 'renderPreview' . ucfirst($this->previewType);
             if (!$this->hasMethod($method)) {
-                throw new \yii\base\InvalidConfigException("Incorrect preview type '$this->previewType'. Method $method does not exist.");
+                throw new InvalidConfigException("Incorrect preview type '$this->previewType'. Method $method does not exist.");
             }
             $result = $this->$method($data);
         }
