@@ -3,6 +3,7 @@
 namespace flexibuild\file\formatters;
 
 use Yii;
+use yii\base\InvalidConfigException;
 
 /**
  * Formatter that applies a set of other formatters.
