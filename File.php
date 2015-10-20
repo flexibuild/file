@@ -604,7 +604,7 @@ class File extends FileComponent
             $url = $this->defaultUrls;
         }
 
-        return $url === null ? null : Url::to($url, $scheme);
+        return isset($url) ? Url::to($url, $scheme) : null;
     }
 
     /**
